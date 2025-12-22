@@ -1,35 +1,34 @@
+"use client"
+
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     History, ChevronLeft, Search, ArrowUpRight, ArrowDownRight,
     Filter, PanelLeftClose, PanelLeftOpen, PieChart, BarChart3,
     Settings, User, Shield, Trash2, LogOut, CheckCircle2,
-    Wallet, TrendingUp, CreditCard, Download
+    Wallet, TrendingUp, CreditCard, Download, Loader2
 } from "lucide-react";
 import { useState, useMemo } from "react";
+import { useTransactions } from "@/hooks/useTransactions";
+import { useAuth } from "@/contexts/AuthContext";
+import { Transaction } from "@/lib/transactions";
 
-// --- Types ---
-interface Transaction {
-    id: string;
-    description: string;
-    amount: number;
-    type: "income" | "expense";
-    date: string;
-    dateTime: Date;
-    category: string;
-}
+// Helper to format date
+const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-// --- Mock Data ---
-const mockHistory: Transaction[] = [
-    { id: "1", description: "Supermercado Semanal", amount: 450.50, type: "expense", date: "Hoje, 10:30", dateTime: new Date(), category: "Alimentação" },
-    { id: "2", description: "Pagamento Freelance", amount: 3200.00, type: "income", date: "Ontem, 16:20", dateTime: new Date(Date.now() - 86400000), category: "Trabalho" },
-    { id: "3", description: "Assinatura Netflix", amount: 55.90, type: "expense", date: "20 Dez", dateTime: new Date(Date.now() - 86400000 * 2), category: "Lazer" },
-    { id: "4", description: "Uber Viagem", amount: 24.30, type: "expense", date: "19 Dez", dateTime: new Date(Date.now() - 86400000 * 3), category: "Transporte" },
-    { id: "5", description: "Reembolso Médico", amount: 150.00, type: "income", date: "18 Dez", dateTime: new Date(Date.now() - 86400000 * 4), category: "Saúde" },
-    { id: "6", description: "Jantar Fora", amount: 120.00, type: "expense", date: "17 Dez", dateTime: new Date(Date.now() - 86400000 * 5), category: "Alimentação" },
-    { id: "7", description: "Combustível", amount: 200.00, type: "expense", date: "16 Dez", dateTime: new Date(Date.now() - 86400000 * 6), category: "Transporte" },
-    { id: "8", description: "Venda Online", amount: 150.00, type: "income", date: "15 Dez", dateTime: new Date(Date.now() - 86400000 * 7), category: "Vendas" },
-];
+    if (days === 0) {
+        return `Hoje, ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    } else if (days === 1) {
+        return `Ontem, ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+        return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    }
+};
+
 
 // --- Components ---
 
@@ -78,7 +77,7 @@ const SimplePieChart = ({ data }: { data: { label: string, value: number, color:
 };
 
 // 2. Simple Liquid/Bar Chart
-const LiquidChart = ({ percentage, color = "#D4AF37" }: { percentage: number, color?: string }) => {
+const LiquidChart = ({ percentage, color = "#B4975A" }: { percentage: number, color?: string }) => {
     return (
         <div className="w-16 h-32 bg-white/5 rounded-full relative overflow-hidden ring-1 ring-white/10 mx-auto">
             <motion.div
@@ -104,6 +103,10 @@ const LiquidChart = ({ percentage, color = "#D4AF37" }: { percentage: number, co
 };
 
 export function SidebarHistory() {
+    // Auth & Data
+    const { user, signOut } = useAuth();
+    const { transactions, summary, loading } = useTransactions();
+
     // UI State
     const [isOpen, setIsOpen] = useState(false); // Mobile
     const [isCollapsed, setIsCollapsed] = useState(false); // Desktop
@@ -114,28 +117,32 @@ export function SidebarHistory() {
     const [categoryFilter, setCategoryFilter] = useState("Todas");
 
     // Derived Data
-    const categories = ["Todas", ...new Set(mockHistory.map(item => item.category))];
-    const recentTransactions = useMemo(() => mockHistory.slice(0, 5), []);
+    const categories = useMemo(() =>
+        ["Todas", ...new Set(transactions.map((item: Transaction) => item.category))],
+        [transactions]
+    );
+    const recentTransactions = useMemo(() => transactions.slice(0, 5), [transactions]);
 
     // Analytics Data Calculation
     const stats = useMemo(() => {
-        const totalIncome = mockHistory.filter(t => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
-        const totalExpense = mockHistory.filter(t => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
-        const balance = totalIncome - totalExpense;
+        const totalIncome = summary?.income || 0;
+        const totalExpense = summary?.expenses || 0;
+        const balance = summary?.balance || 0;
         const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpense) / totalIncome) * 100) : 0;
 
         // Category Data for Pie Chart
-        const catData = Object.entries(
-            mockHistory.filter(t => t.type === 'expense').reduce((acc, curr) => {
-                acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
-                return acc;
-            }, {} as Record<string, number>)
-        ).map(([label, value], i) => ({
-            label, value, color: [`#ef4444`, `#f59e0b`, `#3b82f6`, `#10b981`, `#8b5cf6`][i % 5]
-        }));
+        const catData = summary?.byCategory
+            ? Object.entries(summary.byCategory)
+                .filter(([_, data]) => data.expense > 0)
+                .map(([label, data], i) => ({
+                    label,
+                    value: data.expense,
+                    color: [`#ef4444`, `#f59e0b`, `#3b82f6`, `#10b981`, `#8b5cf6`][i % 5]
+                }))
+            : [];
 
         return { totalIncome, totalExpense, balance, savingsRate, catData };
-    }, []);
+    }, [summary]);
 
     return (
         <>
@@ -233,30 +240,48 @@ export function SidebarHistory() {
                             </div>
 
                             <div className="px-6 pb-4 space-y-2 w-[320px]">
-                                {recentTransactions.map((item) => (
+                                {loading ? (
+                                    <div className="flex items-center justify-center py-8">
+                                        <Loader2 className="w-6 h-6 text-gold animate-spin" />
+                                    </div>
+                                ) : recentTransactions.length === 0 ? (
                                     <motion.div
-                                        key={item.id}
-                                        layoutId={item.id}
-                                        className="group flex items-center gap-4 p-2 -ml-2 rounded-xl hover:bg-white/[0.03] border border-transparent hover:border-white/5 transition-colors cursor-pointer"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className="flex flex-col items-center justify-center py-8 text-center"
                                     >
-                                        <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border shrink-0 transition-colors", item.type === "income" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400")}>
-                                            {item.type === "income" ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                                        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-3">
+                                            <Wallet className="w-5 h-5 text-white/30" />
                                         </div>
-                                        <motion.div
-                                            animate={{ opacity: isCollapsed ? 0 : 1, filter: isCollapsed ? "blur(6px)" : "blur(0px)", x: isCollapsed ? -10 : 0 }}
-                                            transition={{ duration: 0.3 }}
-                                            className="flex-1 min-w-0"
-                                        >
-                                            <div className="flex items-center justify-between mb-0.5">
-                                                <span className="text-sm text-white/90 truncate font-medium">{item.description}</span>
-                                                <span className={cn("text-xs font-mono", item.type === "income" ? "text-emerald-400" : "text-white/70")}>
-                                                    {item.type === "income" ? "+" : "-"} {item.amount.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center justify-between text-[10px] text-white/40"><span>{item.category}</span><span>{item.date}</span></div>
-                                        </motion.div>
+                                        <p className="text-sm text-white/50 mb-1">Nenhuma transação</p>
+                                        <p className="text-xs text-white/30">Use o chat para adicionar suas primeiras despesas e receitas</p>
                                     </motion.div>
-                                ))}
+                                ) : (
+                                    recentTransactions.map((item) => (
+                                        <motion.div
+                                            key={item.id}
+                                            layoutId={item.id}
+                                            className="group flex items-center gap-4 p-2 -ml-2 rounded-xl hover:bg-white/[0.03] border border-transparent hover:border-white/5 transition-colors cursor-pointer"
+                                        >
+                                            <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border shrink-0 transition-colors", item.type === "income" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400")}>
+                                                {item.type === "income" ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                                            </div>
+                                            <motion.div
+                                                animate={{ opacity: isCollapsed ? 0 : 1, filter: isCollapsed ? "blur(6px)" : "blur(0px)", x: isCollapsed ? -10 : 0 }}
+                                                transition={{ duration: 0.3 }}
+                                                className="flex-1 min-w-0"
+                                            >
+                                                <div className="flex items-center justify-between mb-0.5">
+                                                    <span className="text-sm text-white/90 truncate font-medium">{item.description}</span>
+                                                    <span className={cn("text-xs font-mono", item.type === "income" ? "text-emerald-400" : "text-white/70")}>
+                                                        {item.type === "income" ? "+" : "-"} {Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center justify-between text-[10px] text-white/40"><span>{item.category}</span><span>{formatDate(item.created_at)}</span></div>
+                                            </motion.div>
+                                        </motion.div>
+                                    ))
+                                )}
                             </div>
 
                             {/* Summary Card */}
@@ -304,7 +329,7 @@ export function SidebarHistory() {
                                             <span className="text-[10px] text-white/40">Metas</span>
                                         </div>
                                         <div className="flex flex-col items-center gap-2">
-                                            <LiquidChart percentage={stats.savingsRate} color="#D4AF37" />
+                                            <LiquidChart percentage={stats.savingsRate} color="#B4975A" />
                                             <span className="text-[10px] text-white/40">Economia</span>
                                         </div>
                                     </div>
@@ -336,10 +361,16 @@ export function SidebarHistory() {
                             <motion.div animate={{ opacity: isCollapsed ? 0 : 1, filter: isCollapsed ? "blur(8px)" : "blur(0px)" }} className="space-y-6">
                                 {/* Profile */}
                                 <div className="flex items-center gap-4 pb-6 border-b border-white/5">
-                                    <div className="w-12 h-12 rounded-full bg-gold flex items-center justify-center text-midnight font-bold text-lg">U</div>
+                                    <div className="w-12 h-12 rounded-full bg-gold flex items-center justify-center text-midnight font-bold text-lg">
+                                        {user?.email?.charAt(0).toUpperCase() || 'U'}
+                                    </div>
                                     <div>
-                                        <div className="text-sm font-medium text-white">Usuário VIP</div>
-                                        <div className="text-xs text-white/40">concierge@finance.com</div>
+                                        <div className="text-sm font-medium text-white">
+                                            {user ? 'Conta Premium' : 'Visitante'}
+                                        </div>
+                                        <div className="text-xs text-white/40">
+                                            {user?.email || 'Não conectado'}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -369,10 +400,15 @@ export function SidebarHistory() {
                                         <Trash2 className="w-4 h-4 text-rose-500/60 group-hover:text-rose-500" />
                                         <span className="text-sm text-rose-500/80 group-hover:text-rose-500">Resetar Transações</span>
                                     </button>
-                                    <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 text-left transition-colors">
-                                        <LogOut className="w-4 h-4 text-white/40" />
-                                        <span className="text-sm text-white/60">Sair</span>
-                                    </button>
+                                    {user && (
+                                        <button
+                                            onClick={() => signOut()}
+                                            className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 text-left transition-colors"
+                                        >
+                                            <LogOut className="w-4 h-4 text-white/40" />
+                                            <span className="text-sm text-white/60">Sair</span>
+                                        </button>
+                                    )}
                                 </div>
                             </motion.div>
                         </motion.div>

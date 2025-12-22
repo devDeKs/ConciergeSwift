@@ -17,14 +17,15 @@ import {
     Command,
     Calendar,
     ArrowLeft,
+    CheckCircle2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as React from "react"
 import { SidebarHistory } from "./sidebar-history";
-
-// ... existing imports ...
-
-// ... types start here ...
+import { useTransactions } from "@/hooks/useTransactions";
+import { useProfile } from "@/hooks/useProfile";
+import { useAuth } from "@/contexts/AuthContext";
+import { parseTransactionFromMessage, CreateTransactionInput } from "@/lib/transactions";
 
 // Types for Chat
 interface Message {
@@ -148,10 +149,15 @@ Textarea.displayName = "Textarea"
 Textarea.displayName = "Textarea"
 
 export function AnimatedAIChat() {
+    // Data hooks
+    const { user } = useAuth();
+    const { addTransaction, refresh: refreshTransactions } = useTransactions();
+    const { firstName } = useProfile();
+
     // Unified Menu State
     const [activeMenu, setActiveMenu] = useState<"main" | "reports" | "income" | "expense">("main");
 
-    // ... (rest of simple state: value, attachments, etc)
+    // State
     const [value, setValue] = useState("");
     const [attachments, setAttachments] = useState<string[]>([]);
     const [isTyping, setIsTyping] = useState(false);
@@ -161,6 +167,7 @@ export function AnimatedAIChat() {
     const [recentCommand, setRecentCommand] = useState<string | null>(null);
     const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
     const [messages, setMessages] = useState<Message[]>([]);
+    const [transactionSuccess, setTransactionSuccess] = useState<string | null>(null);
 
     // ... (Subtitle logic remains same)
     const [currentTipIndex, setCurrentTipIndex] = useState(0);
@@ -259,23 +266,72 @@ export function AnimatedAIChat() {
 
     const handleSendMessage = async () => {
         if (!value.trim()) return;
-        const userMessage: Message = { role: "user", content: value };
+
+        const messageContent = value.trim();
+        const userMessage: Message = { role: "user", content: messageContent };
         setMessages(prev => [...prev, userMessage]);
         setValue("");
         adjustHeight(true);
         setIsTyping(true);
-        // ... (Transition logic matches previous)
-        startTransition(async () => {
+
+        // Try to parse as transaction first
+        const parsedTransaction = parseTransactionFromMessage(messageContent);
+
+        if (parsedTransaction) {
+            // Check if user is logged in
+            if (!user) {
+                setMessages(prev => [...prev, {
+                    role: "assistant",
+                    content: "🔐 Para salvar transações, você precisa estar logado. Crie uma conta ou faça login para começar a gerenciar suas finanças!"
+                }]);
+                setIsTyping(false);
+                return;
+            }
+
+            // It's a transaction - save to Supabase
             try {
-                const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [...messages, userMessage] }) });
-                if (!response.ok) throw new Error('Failed to fetch');
-                const data = await response.json();
-                setMessages(prev => [...prev, { role: "assistant", content: data.content || "Peço desculpas, mas não consegui processar sua solicitação." }]);
+                const result = await addTransaction(parsedTransaction);
+
+                if (result.success) {
+                    // Show success message
+                    const typeLabel = parsedTransaction.type === 'income' ? 'Receita' : 'Despesa';
+                    const successMsg = `✅ ${typeLabel} registrada: R$ ${parsedTransaction.amount.toFixed(2)} - ${parsedTransaction.description} (${parsedTransaction.category})`;
+
+                    setMessages(prev => [...prev, { role: "assistant", content: successMsg }]);
+                    setTransactionSuccess(successMsg);
+
+                    // Refresh transactions in sidebar
+                    refreshTransactions();
+
+                    // Clear success after 3 seconds
+                    setTimeout(() => setTransactionSuccess(null), 3000);
+                } else {
+                    setMessages(prev => [...prev, { role: "assistant", content: "Não foi possível salvar a transação. Por favor, tente novamente." }]);
+                }
             } catch (error) {
-                console.error(error);
-                setMessages(prev => [...prev, { role: "assistant", content: "Desculpe, estou com dificuldades para conectar ao serviço de concierge no momento." }]);
-            } finally { setIsTyping(false); }
-        });
+                console.error('Transaction error:', error);
+                setMessages(prev => [...prev, { role: "assistant", content: "Erro ao processar transação. Verifique sua conexão." }]);
+            } finally {
+                setIsTyping(false);
+            }
+        } else {
+            // Not a transaction, use AI chat
+            startTransition(async () => {
+                try {
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ messages: [...messages, userMessage] })
+                    });
+                    if (!response.ok) throw new Error('Failed to fetch');
+                    const data = await response.json();
+                    setMessages(prev => [...prev, { role: "assistant", content: data.content || "Peço desculpas, mas não consegui processar sua solicitação." }]);
+                } catch (error) {
+                    console.error(error);
+                    setMessages(prev => [...prev, { role: "assistant", content: "Desculpe, estou com dificuldades para conectar ao serviço de concierge no momento." }]);
+                } finally { setIsTyping(false); }
+            });
+        }
     };
 
     const handleAttachFile = () => { setAttachments(prev => [...prev, `invoice-${Math.floor(Math.random() * 1000)}.pdf`]); };
@@ -317,7 +373,7 @@ export function AnimatedAIChat() {
                 {messages.length === 0 && (
                     <motion.div className="text-center space-y-4 mb-12" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: "easeOut" }}>
                         <div className="space-y-4">
-                            <h1 className="text-3xl md:text-4xl tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white/90 to-white/60 font-serif drop-shadow-sm pb-1" style={{ fontFamily: 'var(--font-playfair)' }}>Como posso ajudar hoje, Usuário?</h1>
+                            <h1 className="text-3xl md:text-4xl tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white/90 to-white/60 font-serif drop-shadow-sm pb-1" style={{ fontFamily: 'var(--font-playfair)' }}>Como posso ajudar hoje, <span className="bg-gradient-to-br from-gold-light via-gold to-gold-dark bg-clip-text text-transparent">{firstName || 'Usuário'}</span>?</h1>
                             <div className="h-6 overflow-hidden relative">
                                 <AnimatePresence mode="wait">
                                     <motion.p key={currentTipIndex} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }} transition={{ duration: 0.5 }} className="text-white/50 font-light text-base">{financeTips[currentTipIndex]}</motion.p>

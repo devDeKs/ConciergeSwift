@@ -24,9 +24,9 @@
   /* Custom Luxury Colors */
   --color-midnight: #0b1021;
   --color-midnight-light: #182245;
-  --color-gold: #D4AF37;
-  --color-gold-light: #F4D06F;
-  --color-gold-dark: #A6872D;
+  --color-gold: #B4975A;
+  --color-gold-light: #D6C08D;
+  --color-gold-dark: #7D6635;
 
   --font-playfair: var(--font-playfair);
 }
@@ -41,7 +41,7 @@
   --popover: #0b1021;
   --popover-foreground: #fafafa;
 
-  --primary: #D4AF37;
+  --primary: #B4975A;
   --primary-foreground: #000000;
 
   --secondary: #182245;
@@ -58,7 +58,7 @@
 
   --border: #1e293b;
   --input: #1e293b;
-  --ring: #D4AF37;
+  --ring: #B4975A;
 
   --radius: 0.75rem;
 }
@@ -72,4 +72,126 @@
     background-color: var(--background);
     color: var(--foreground);
   }
+}
+
+/* Glass Input Styles */
+@property --angle-1 {
+  syntax: "<angle>";
+  initial-value: -90deg;
+  inherits: false;
+}
+
+@property --angle-2 {
+  syntax: "<angle>";
+  initial-value: 180deg;
+  inherits: false;
+}
+
+.glass-input-wrap {
+  position: relative;
+  z-index: 2;
+  transform-style: preserve-3d;
+  border-radius: 1rem;
+}
+
+.glass-input {
+  display: flex;
+  position: relative;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 1rem;
+  padding: 0.75rem 0.5rem;
+  -webkit-tap-highlight-color: transparent;
+  backdrop-filter: blur(clamp(1px, 0.125em, 4px));
+  transition: all 400ms cubic-bezier(0.25, 1, 0.5, 1);
+  background: linear-gradient(-75deg,
+      oklch(from var(--background) l c h / 5%),
+      oklch(from var(--background) l c h / 20%),
+      oklch(from var(--background) l c h / 5%));
+  box-shadow:
+    inset 0 0.125em 0.125em oklch(from var(--foreground) l c h / 5%),
+    inset 0 -0.125em 0.125em oklch(from var(--background) l c h / 50%),
+    0 0.25em 0.125em -0.125em oklch(from var(--foreground) l c h / 20%),
+    0 0 0.1em 0.25em inset oklch(from var(--background) l c h / 20%),
+    0 0 0 0 oklch(from var(--background) l c h);
+}
+
+.glass-input-wrap:focus-within .glass-input {
+  backdrop-filter: blur(0.01em);
+  box-shadow:
+    inset 0 0.125em 0.125em oklch(from var(--foreground) l c h / 5%),
+    inset 0 -0.125em 0.125em oklch(from var(--background) l c h / 50%),
+    0 0.15em 0.05em -0.1em oklch(from var(--foreground) l c h / 25%),
+    0 0 0.05em 0.1em inset oklch(from var(--background) l c h / 50%),
+    0 0 0 0 oklch(from var(--background) l c h);
+}
+
+.glass-input::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: 1rem;
+  width: calc(100% + clamp(1px, 0.0625em, 4px));
+  height: calc(100% + clamp(1px, 0.0625em, 4px));
+  top: calc(0% - clamp(1px, 0.0625em, 4px) / 2);
+  left: calc(0% - clamp(1px, 0.0625em, 4px) / 2);
+  padding: clamp(1px, 0.0625em, 4px);
+  box-sizing: border-box;
+  background:
+    conic-gradient(from var(--angle-1) at 50% 50%,
+      oklch(from var(--foreground) l c h / 50%) 0%,
+      transparent 5% 40%,
+      oklch(from var(--foreground) l c h / 50%) 50%,
+      transparent 60% 95%,
+      oklch(from var(--foreground) l c h / 50%) 100%),
+    linear-gradient(180deg,
+      oklch(from var(--background) l c h / 50%),
+      oklch(from var(--background) l c h / 50%));
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  transition: all 400ms cubic-bezier(0.25, 1, 0.5, 1), --angle-1 500ms ease;
+  box-shadow: inset 0 0 0 calc(clamp(1px, 0.0625em, 4px) / 2) oklch(from var(--background) l c h / 50%);
+  pointer-events: none;
+}
+
+.glass-input-wrap:focus-within .glass-input::after {
+  --angle-1: -125deg;
+}
+
+.glass-input-text-area {
+  position: absolute;
+  inset: 0;
+  border-radius: 1rem;
+  pointer-events: none;
+}
+
+.glass-input-text-area::after {
+  content: "";
+  display: block;
+  position: absolute;
+  width: calc(100% - clamp(1px, 0.0625em, 4px));
+  height: calc(100% - clamp(1px, 0.0625em, 4px));
+  top: calc(0% + clamp(1px, 0.0625em, 4px) / 2);
+  left: calc(0% + clamp(1px, 0.0625em, 4px) / 2);
+  box-sizing: border-box;
+  border-radius: 1rem;
+  overflow: clip;
+  background: linear-gradient(var(--angle-2),
+      transparent 0%,
+      oklch(from var(--background) l c h / 50%) 40% 50%,
+      transparent 55%);
+  z-index: 3;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+  transition:
+    background-position calc(400ms * 1.25) cubic-bezier(0.25, 1, 0.5, 1),
+    --angle-2 calc(400ms * 1.25) cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.glass-input-wrap:focus-within .glass-input-text-area::after {
+  background-position: 25% 50%;
 }
