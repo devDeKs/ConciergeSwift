@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback, createContext, Children } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { ArrowRight, Mail, Gem, Lock, Eye, EyeOff, ArrowLeft, X, AlertCircle, PartyPopper, Loader, User } from "lucide-react";
+import { ArrowRight, Mail, Gem, Lock, Eye, EyeOff, ArrowLeft, X, AlertCircle, PartyPopper, Loader, User, UserCircle } from "lucide-react";
 import { AnimatePresence, motion, useInView, Variants, Transition } from "framer-motion";
+import type { Gender } from "@/lib/profiles";
 
 // --- CONFETTI LOGIC ---
 import type { GlobalOptions as ConfettiGlobalOptions, CreateTypes as ConfettiInstance, Options as ConfettiOptions } from "canvas-confetti"
@@ -185,9 +186,10 @@ export const AuthComponent = ({ logo = <DefaultLogo />, brandName = "Concierge F
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [fullName, setFullName] = useState("");
+    const [gender, setGender] = useState<Gender | undefined>(undefined);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [authStep, setAuthStep] = useState<"email" | "password" | "confirmPassword" | "name">("email");
+    const [authStep, setAuthStep] = useState<"email" | "password" | "confirmPassword" | "name" | "gender">("email");
     const [modalStatus, setModalStatus] = useState<'closed' | 'loading' | 'error' | 'success'>('closed');
     const [modalErrorMessage, setModalErrorMessage] = useState('');
     const confettiRef = useRef<ConfettiRef>(null);
@@ -213,8 +215,7 @@ export const AuthComponent = ({ logo = <DefaultLogo />, brandName = "Concierge F
 
     const handleFinalSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (modalStatus !== 'closed' || authStep !== 'name') return;
-        if (!isNameValid) return;
+        if (modalStatus !== 'closed' || authStep !== 'gender') return;
 
         setModalStatus('loading');
 
@@ -231,7 +232,7 @@ export const AuthComponent = ({ logo = <DefaultLogo />, brandName = "Concierge F
             // 2. Criar perfil com nome (será feito após login automático)
             // O Supabase Auth faz login automático após signup
             const { createProfile } = await import('@/lib/profiles');
-            const profileResult = await createProfile(fullName.trim());
+            const profileResult = await createProfile(fullName.trim(), gender);
 
             if (profileResult.error) {
                 console.error('Profile creation error:', profileResult.error);
@@ -269,6 +270,8 @@ export const AuthComponent = ({ logo = <DefaultLogo />, brandName = "Concierge F
                 return;
             }
             if (isConfirmPasswordValid) setAuthStep("name");
+        } else if (authStep === 'name') {
+            if (isNameValid) setAuthStep("gender");
         }
     };
 
@@ -286,7 +289,9 @@ export const AuthComponent = ({ logo = <DefaultLogo />, brandName = "Concierge F
     };
 
     const handleGoBack = () => {
-        if (authStep === 'name') {
+        if (authStep === 'gender') {
+            setAuthStep('name');
+        } else if (authStep === 'name') {
             setAuthStep('confirmPassword');
         } else if (authStep === 'confirmPassword') {
             setAuthStep('password');
@@ -393,6 +398,10 @@ export const AuthComponent = ({ logo = <DefaultLogo />, brandName = "Concierge F
                             <BlurFade delay={0} className="w-full"><div className="text-center"><p className="font-serif font-light text-4xl sm:text-5xl tracking-tight text-white whitespace-nowrap drop-shadow-lg" style={{ fontFamily: 'var(--font-playfair)' }}>Seu Nome</p></div></BlurFade>
                             <BlurFade delay={0.25 * 1}><p className="text-xs font-medium text-white/40 uppercase tracking-widest">Como podemos te chamar?</p></BlurFade>
                         </motion.div>}
+                        {authStep === "gender" && <motion.div key="gender-title" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="w-full flex flex-col items-center text-center gap-4">
+                            <BlurFade delay={0} className="w-full"><div className="text-center"><p className="font-serif font-light text-4xl sm:text-5xl tracking-tight text-white whitespace-nowrap drop-shadow-lg" style={{ fontFamily: 'var(--font-playfair)' }}>Olá, {fullName.split(' ')[0]}!</p></div></BlurFade>
+                            <BlurFade delay={0.25 * 1}><p className="text-xs font-medium text-white/40 uppercase tracking-widest">Como devemos te tratar?</p></BlurFade>
+                        </motion.div>}
                     </AnimatePresence>
 
                     <form onSubmit={handleFinalSubmit} className="w-[300px] space-y-6">
@@ -472,8 +481,64 @@ export const AuthComponent = ({ logo = <DefaultLogo />, brandName = "Concierge F
                                             <User className="h-5 w-5 text-white/60 flex-shrink-0" />
                                         </div>
                                         <input ref={nameInputRef} type="text" placeholder="Digite seu nome" value={fullName} onChange={(e) => setFullName(e.target.value)} onKeyDown={handleKeyDown} className="relative z-10 h-full w-0 flex-grow bg-transparent text-white placeholder:text-white/30 focus:outline-none" />
-                                        <div className={cn("relative z-10 flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out", isNameValid ? "w-10 pr-1" : "w-0")}><GlassButton type="submit" size="icon" aria-label="Finish sign-up" contentClassName="text-white/80 hover:text-white"><ArrowRight className="w-5 h-5" /></GlassButton></div>
+                                        <div className={cn("relative z-10 flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out", isNameValid ? "w-10 pr-1" : "w-0")}><GlassButton type="button" onClick={handleProgressStep} size="icon" aria-label="Continue" contentClassName="text-white/80 hover:text-white"><ArrowRight className="w-5 h-5" /></GlassButton></div>
                                     </div></div>
+                                </div>
+                                <BlurFade inView delay={0.2}><button type="button" onClick={handleGoBack} className="mt-4 flex items-center gap-2 text-xs text-white/40 hover:text-white/80 transition-colors uppercase tracking-widest font-medium"><ArrowLeft className="w-3 h-3" /> Voltar</button></BlurFade>
+                            </BlurFade>}
+                        </AnimatePresence>
+                        <AnimatePresence>
+                            {authStep === 'gender' && <BlurFade key="gender-field" className="w-full">
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="grid grid-cols-3 gap-3 w-full">
+                                        <button
+                                            type="button"
+                                            onClick={() => setGender('male')}
+                                            className={cn(
+                                                "flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all duration-300",
+                                                "backdrop-blur-xl",
+                                                gender === 'male'
+                                                    ? "bg-gold/20 border-gold/50 shadow-[0_0_20px_-5px_rgba(212,175,55,0.4)]"
+                                                    : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
+                                            )}
+                                        >
+                                            <UserCircle className={cn("w-8 h-8", gender === 'male' ? "text-gold" : "text-white/60")} />
+                                            <span className={cn("text-xs font-medium", gender === 'male' ? "text-gold" : "text-white/60")}>Sr.</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setGender('female')}
+                                            className={cn(
+                                                "flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all duration-300",
+                                                "backdrop-blur-xl",
+                                                gender === 'female'
+                                                    ? "bg-gold/20 border-gold/50 shadow-[0_0_20px_-5px_rgba(212,175,55,0.4)]"
+                                                    : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
+                                            )}
+                                        >
+                                            <UserCircle className={cn("w-8 h-8", gender === 'female' ? "text-gold" : "text-white/60")} />
+                                            <span className={cn("text-xs font-medium", gender === 'female' ? "text-gold" : "text-white/60")}>Sra.</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setGender('other')}
+                                            className={cn(
+                                                "flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all duration-300",
+                                                "backdrop-blur-xl",
+                                                gender === 'other'
+                                                    ? "bg-gold/20 border-gold/50 shadow-[0_0_20px_-5px_rgba(212,175,55,0.4)]"
+                                                    : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
+                                            )}
+                                        >
+                                            <User className={cn("w-8 h-8", gender === 'other' ? "text-gold" : "text-white/60")} />
+                                            <span className={cn("text-xs font-medium", gender === 'other' ? "text-gold" : "text-white/60")}>Outro</span>
+                                        </button>
+                                    </div>
+                                    <div className={cn("transition-all duration-300", gender ? "opacity-100" : "opacity-0 pointer-events-none")}>
+                                        <GlassButton type="submit" aria-label="Finalizar cadastro" contentClassName="text-white/80 hover:text-white flex items-center gap-2">
+                                            Finalizar Cadastro <ArrowRight className="w-4 h-4" />
+                                        </GlassButton>
+                                    </div>
                                 </div>
                                 <BlurFade inView delay={0.2}><button type="button" onClick={handleGoBack} className="mt-4 flex items-center gap-2 text-xs text-white/40 hover:text-white/80 transition-colors uppercase tracking-widest font-medium"><ArrowLeft className="w-3 h-3" /> Voltar</button></BlurFade>
                             </BlurFade>}

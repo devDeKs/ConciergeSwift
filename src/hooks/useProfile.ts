@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { Profile, getProfile, createProfile, updateProfileName } from '@/lib/profiles'
+import { Profile, Gender, getProfile, createProfile, updateProfileName } from '@/lib/profiles'
 
 export function useProfile() {
     const { user } = useAuth()
@@ -43,9 +43,9 @@ export function useProfile() {
     }, [loadProfile])
 
     // Criar perfil
-    const saveProfile = async (fullName: string) => {
+    const saveProfile = async (fullName: string, gender?: Gender) => {
         try {
-            const { data, error } = await createProfile(fullName)
+            const { data, error } = await createProfile(fullName, gender)
 
             if (error) throw error
             if (data) {
@@ -79,9 +79,14 @@ export function useProfile() {
     // Obter primeiro nome para exibição
     const firstName = profile?.full_name?.split(' ')[0] || null
 
+    // Obter prefixo de saudação baseado no gênero
+    const greetingPrefix = profile?.gender === 'male' ? 'Sr. ' : profile?.gender === 'female' ? 'Sra. ' : ''
+
     return {
         profile,
         firstName,
+        greetingPrefix,
+        gender: profile?.gender,
         loading,
         error,
         saveProfile,
@@ -89,3 +94,4 @@ export function useProfile() {
         refresh: loadProfile
     }
 }
+

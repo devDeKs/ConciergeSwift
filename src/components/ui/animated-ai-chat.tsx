@@ -22,10 +22,13 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import * as React from "react"
 import { SidebarHistory } from "./sidebar-history";
+import { FreeBalanceIndicator } from "./free-balance-indicator";
+import { InstallmentModal } from "./installment-modal";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useProfile } from "@/hooks/useProfile";
 import { useAuth } from "@/contexts/AuthContext";
 import { parseTransactionFromMessage, CreateTransactionInput } from "@/lib/transactions";
+import { CreditCard } from "lucide-react";
 
 // Types for Chat
 interface Message {
@@ -152,7 +155,7 @@ export function AnimatedAIChat() {
     // Data hooks
     const { user } = useAuth();
     const { addTransaction, refresh: refreshTransactions } = useTransactions();
-    const { firstName } = useProfile();
+    const { firstName, greetingPrefix } = useProfile();
 
     // Unified Menu State
     const [activeMenu, setActiveMenu] = useState<"main" | "reports" | "income" | "expense">("main");
@@ -168,6 +171,9 @@ export function AnimatedAIChat() {
     const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
     const [messages, setMessages] = useState<Message[]>([]);
     const [transactionSuccess, setTransactionSuccess] = useState<string | null>(null);
+
+    // Installment Modal State
+    const [showInstallmentModal, setShowInstallmentModal] = useState(false);
 
     // ... (Subtitle logic remains same)
     const [currentTipIndex, setCurrentTipIndex] = useState(0);
@@ -188,6 +194,7 @@ export function AnimatedAIChat() {
     const mainOptions: CommandSuggestion[] = [
         { icon: <TrendingUp className="w-5 h-5 text-emerald-400" />, label: "Receita", description: "Registrar ganho", prefix: "income_menu" },
         { icon: <TrendingDown className="w-5 h-5 text-rose-400" />, label: "Despesa", description: "Registrar gasto", prefix: "expense_menu" },
+        { icon: <CreditCard className="w-5 h-5 text-blue-400" />, label: "Parcelas", description: "Parcelamento", prefix: "installments_menu" },
         { icon: <PieChart className="w-5 h-5 text-gold" />, label: "Relatório", description: "Ver resumo", prefix: "reports_menu" },
     ];
 
@@ -268,14 +275,24 @@ export function AnimatedAIChat() {
         if (!value.trim()) return;
 
         const messageContent = value.trim();
-        const userMessage: Message = { role: "user", content: messageContent };
-        setMessages(prev => [...prev, userMessage]);
         setValue("");
         adjustHeight(true);
         setIsTyping(true);
 
         // Try to parse as transaction first
         const parsedTransaction = parseTransactionFromMessage(messageContent);
+
+        // Format user message - if it's a transaction, show clean summary
+        let displayMessage = messageContent;
+        if (parsedTransaction && !isNaN(parsedTransaction.amount) && parsedTransaction.amount > 0) {
+            const sign = parsedTransaction.type === 'expense' ? '-' : '+';
+            // Capitalize first letter of description
+            const desc = parsedTransaction.description.charAt(0).toUpperCase() + parsedTransaction.description.slice(1);
+            displayMessage = `${desc} ${sign}R$${parsedTransaction.amount.toFixed(2)}`;
+        }
+
+        const userMessage: Message = { role: "user", content: displayMessage };
+        setMessages(prev => [...prev, userMessage]);
 
         if (parsedTransaction) {
             // Check if user is logged in
@@ -315,9 +332,70 @@ export function AnimatedAIChat() {
                 setIsTyping(false);
             }
         } else {
-            // Not a transaction, use AI chat
+            // Regex didn't match - try AI parsing with Gemini
             startTransition(async () => {
                 try {
+                    // Try AI-powered transaction parsing first
+                    const parseResponse = await fetch('/api/parse-transaction', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: messageContent })
+                    });
+
+                    if (parseResponse.ok) {
+                        const parseResult = await parseResponse.json();
+
+                        // Check if AI successfully parsed a transaction
+                        if (parseResult.type && parseResult.amount && !parseResult.error) {
+                            const aiTransaction = {
+                                type: parseResult.type as 'income' | 'expense',
+                                amount: parseResult.amount,
+                                description: parseResult.description || 'Transação',
+                                category: parseResult.category || 'Outros'
+                            };
+
+                            // Update displayed message with clean format
+                            const sign = aiTransaction.type === 'expense' ? '-' : '+';
+                            const cleanDisplay = `${aiTransaction.description} ${sign}R$${aiTransaction.amount.toFixed(2)}`;
+
+                            // Update the last user message to show clean format
+                            setMessages(prev => {
+                                const updated = [...prev];
+                                if (updated.length > 0 && updated[updated.length - 1].role === 'user') {
+                                    updated[updated.length - 1].content = cleanDisplay;
+                                }
+                                return updated;
+                            });
+
+                            // Check if user is logged in
+                            if (!user) {
+                                setMessages(prev => [...prev, {
+                                    role: "assistant",
+                                    content: "🔐 Para salvar transações, você precisa estar logado. Crie uma conta ou faça login para começar a gerenciar suas finanças!"
+                                }]);
+                                setIsTyping(false);
+                                return;
+                            }
+
+                            // Save the AI-parsed transaction
+                            const result = await addTransaction(aiTransaction);
+
+                            if (result.success) {
+                                const typeLabel = aiTransaction.type === 'income' ? 'Receita' : 'Despesa';
+                                const successMsg = `✅ ${typeLabel} registrada: R$ ${aiTransaction.amount.toFixed(2)} - ${aiTransaction.description} (${aiTransaction.category})`;
+                                setMessages(prev => [...prev, { role: "assistant", content: successMsg }]);
+                                setTransactionSuccess(successMsg);
+                                refreshTransactions();
+                                setTimeout(() => setTransactionSuccess(null), 3000);
+                            } else {
+                                setMessages(prev => [...prev, { role: "assistant", content: "Não foi possível salvar a transação. Por favor, tente novamente." }]);
+                            }
+                            setIsTyping(false);
+                            return;
+                        }
+                    }
+
+                    // Not a transaction - use general AI chat
                     const response = await fetch('/api/chat', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -345,6 +423,7 @@ export function AnimatedAIChat() {
         if (selected.prefix === "income_menu") { setActiveMenu("income"); return; }
         if (selected.prefix === "expense_menu") { setActiveMenu("expense"); return; }
         if (selected.prefix === "reports_menu") { setActiveMenu("reports"); return; }
+        if (selected.prefix === "installments_menu") { setShowInstallmentModal(true); return; }
 
         // Final Action: Populate text and reset menu
         setValue(selected.prefix);
@@ -369,11 +448,12 @@ export function AnimatedAIChat() {
             </div>
 
             <div className="w-full max-w-2xl mx-auto relative z-10 flex flex-col items-center">
+
                 {/* Header matches previous... */}
                 {messages.length === 0 && (
                     <motion.div className="text-center space-y-4 mb-12" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: "easeOut" }}>
                         <div className="space-y-4">
-                            <h1 className="text-3xl md:text-4xl tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white/90 to-white/60 font-serif drop-shadow-sm pb-1" style={{ fontFamily: 'var(--font-playfair)' }}>Como posso ajudar hoje, <span className="bg-gradient-to-br from-gold-light via-gold to-gold-dark bg-clip-text text-transparent">{firstName || 'Usuário'}</span>?</h1>
+                            <h1 className="text-3xl md:text-4xl tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white/90 to-white/60 font-serif drop-shadow-sm pb-1" style={{ fontFamily: 'var(--font-playfair)' }}>Como posso ajudar hoje, <span className="bg-gradient-to-br from-gold-light via-gold to-gold-dark bg-clip-text text-transparent">{greetingPrefix}{firstName || 'Usuário'}</span>?</h1>
                             <div className="h-6 overflow-hidden relative">
                                 <AnimatePresence mode="wait">
                                     <motion.p key={currentTipIndex} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }} transition={{ duration: 0.5 }} className="text-white/50 font-light text-base">{financeTips[currentTipIndex]}</motion.p>
@@ -454,6 +534,11 @@ export function AnimatedAIChat() {
                                         </button>
                                     ))}
                                 </div>
+
+                                {/* Free Balance Indicator - Compact below cards */}
+                                <div className="w-full flex justify-center mt-4">
+                                    <FreeBalanceIndicator compact className="" />
+                                </div>
                             </motion.div>
                         </AnimatePresence>
                     </div>
@@ -492,6 +577,17 @@ export function AnimatedAIChat() {
                     }}
                 />
             )}
+
+            {/* Installment Modal */}
+            <InstallmentModal
+                isOpen={showInstallmentModal}
+                onClose={() => setShowInstallmentModal(false)}
+                onConfirm={(installments) => {
+                    console.log('Created installments:', installments)
+                    // TODO: Save to database
+                    refreshTransactions()
+                }}
+            />
         </div>
     );
 }

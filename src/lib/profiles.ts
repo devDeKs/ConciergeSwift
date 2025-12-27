@@ -1,9 +1,12 @@
 import { supabase } from './supabase'
 
+export type Gender = 'male' | 'female' | 'other'
+
 export interface Profile {
     id: string
     user_id: string
     full_name: string
+    gender?: Gender
     created_at: string
     updated_at: string
 }
@@ -26,7 +29,7 @@ export const getProfile = async () => {
 }
 
 // Criar perfil após signup
-export const createProfile = async (fullName: string) => {
+export const createProfile = async (fullName: string, gender?: Gender) => {
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -44,7 +47,7 @@ export const createProfile = async (fullName: string) => {
         // Update existing profile
         const { data, error } = await supabase
             .from('profiles')
-            .update({ full_name: fullName, updated_at: new Date().toISOString() })
+            .update({ full_name: fullName, gender, updated_at: new Date().toISOString() })
             .eq('user_id', user.id)
             .select()
             .single()
@@ -56,7 +59,8 @@ export const createProfile = async (fullName: string) => {
         .from('profiles')
         .insert({
             user_id: user.id,
-            full_name: fullName
+            full_name: fullName,
+            gender
         })
         .select()
         .single()

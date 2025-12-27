@@ -1,7 +1,7 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 const apiKey = process.env.GEMINI_API_KEY;
-const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
+const genAI = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const runtime = "edge";
 
@@ -17,14 +17,15 @@ export async function POST(req: Request) {
         const { messages } = await req.json();
         const lastMessage = messages[messages.length - 1];
 
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash-exp",
-            systemInstruction: "You are a specialized financial assistant for a dashboard called 'Concierge'. Your goal is to help users register expenses and income. You should analyze their input and extract: Type (Expense/Income), Amount, Category, and Description. If the input is vague, ask for clarification. Maintain a luxurious, professional, and helpful tone. Format your response in Markdown."
+        const response = await genAI.models.generateContent({
+            model: "gemini-2.0-flash",
+            contents: lastMessage.content,
+            config: {
+                systemInstruction: "You are a specialized financial assistant for a dashboard called 'Concierge'. Your goal is to help users with financial questions and advice. Maintain a luxurious, professional, and helpful tone. Respond in Portuguese (Brazilian). Keep responses concise."
+            }
         });
 
-        const result = await model.generateContent(lastMessage.content);
-        const response = await result.response;
-        const text = response.text();
+        const text = response.text;
 
         return new Response(JSON.stringify({ content: text }), {
             status: 200,

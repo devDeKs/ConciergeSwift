@@ -126,57 +126,97 @@ export const getFinancialSummary = async () => {
 
 // Parse de mensagem do chat para criar transação
 export const parseTransactionFromMessage = (message: string): CreateTransactionInput | null => {
-    // Padrões para despesas: "gastei 30 no ifood", "paguei 100 de luz", "comprei algo por 50"
-    const expensePatterns = [
-        /gastei\s+(\d+(?:[.,]\d{2})?)\s+(?:no|na|em|de)?\s*(.+)/i,
-        /paguei\s+(\d+(?:[.,]\d{2})?)\s+(?:de|do|da)?\s*(.+)/i,
-        /comprei\s+(.+)\s+por\s+(\d+(?:[.,]\d{2})?)/i,
-        /(?:despesa|gasto)\s+(.+)\s+(\d+(?:[.,]\d{2})?)/i
+    const msg = message.trim().toLowerCase()
+
+    // Extract amount from anywhere in the message (handles "50 reais", "R$ 50", "50")
+    const amountPatterns = [
+        /r?\$?\s*(\d+(?:[.,]\d{1,2})?)\s*(?:reais|real)?/i,
+        /(\d+(?:[.,]\d{1,2})?)\s*(?:reais|real|r\$)/i,
     ]
 
-    // Padrões para receitas: "recebi 1000 de salário", "ganhei 500", "entrou 200"
-    const incomePatterns = [
-        /recebi\s+(\d+(?:[.,]\d{2})?)\s+(?:de|do|da)?\s*(.+)/i,
-        /ganhei\s+(\d+(?:[.,]\d{2})?)\s+(?:de|do|da|com)?\s*(.+)?/i,
-        /entrou\s+(\d+(?:[.,]\d{2})?)\s+(?:de|do|da)?\s*(.+)?/i,
-        /(?:receita|renda)\s+(.+)\s+(\d+(?:[.,]\d{2})?)/i
-    ]
-
-    // Tentar match de despesa
-    for (const pattern of expensePatterns) {
-        const match = message.match(pattern)
+    let extractedAmount = 0
+    for (const pattern of amountPatterns) {
+        const match = msg.match(pattern)
         if (match) {
-            const amount = parseFloat(match[1].replace(',', '.'))
-            const description = match[2]?.trim() || 'Despesa'
-            const category = categorizeTransaction(description)
-
-            return {
-                amount,
-                description,
-                type: 'expense',
-                category
-            }
+            extractedAmount = parseFloat(match[1].replace(',', '.'))
+            if (!isNaN(extractedAmount) && extractedAmount > 0) break
         }
     }
 
-    // Tentar match de receita
-    for (const pattern of incomePatterns) {
-        const match = message.match(pattern)
-        if (match) {
-            const amount = parseFloat(match[1].replace(',', '.'))
-            const description = match[2]?.trim() || 'Receita'
-            const category = categorizeTransaction(description, 'income')
+    if (extractedAmount <= 0) return null
 
-            return {
-                amount,
-                description,
-                type: 'income',
-                category
-            }
+    // Determine type based on keywords
+    const expenseKeywords = ['gastei', 'paguei', 'comprei', 'gasto', 'despesa', 'compra', 'pago']
+    const incomeKeywords = ['recebi', 'ganhei', 'entrou', 'receita', 'renda', 'salário', 'salario']
+
+    let type: 'income' | 'expense' = 'expense'
+    if (incomeKeywords.some(k => msg.includes(k))) {
+        type = 'income'
+    }
+
+    // Extract description - try to find meaningful words
+    let description = ''
+
+    // Common known categories/merchants to detect
+    const knownTerms: { [key: string]: { desc: string; cat: string } } = {
+        'ifood': { desc: 'iFood', cat: 'Alimentação' },
+        'uber': { desc: 'Uber', cat: 'Transporte' },
+        '99': { desc: '99 Taxi', cat: 'Transporte' },
+        'netflix': { desc: 'Netflix', cat: 'Lazer' },
+        'spotify': { desc: 'Spotify', cat: 'Lazer' },
+        'mercado': { desc: 'Mercado', cat: 'Alimentação' },
+        'supermercado': { desc: 'Supermercado', cat: 'Alimentação' },
+        'restaurante': { desc: 'Restaurante', cat: 'Alimentação' },
+        'luz': { desc: 'Conta de Luz', cat: 'Contas' },
+        'água': { desc: 'Conta de Água', cat: 'Contas' },
+        'agua': { desc: 'Conta de Água', cat: 'Contas' },
+        'internet': { desc: 'Internet', cat: 'Contas' },
+        'aluguel': { desc: 'Aluguel', cat: 'Contas' },
+        'salário': { desc: 'Salário', cat: 'Trabalho' },
+        'salario': { desc: 'Salário', cat: 'Trabalho' },
+        'freelance': { desc: 'Freelance', cat: 'Freelance' },
+        'farmácia': { desc: 'Farmácia', cat: 'Saúde' },
+        'farmacia': { desc: 'Farmácia', cat: 'Saúde' },
+        'gasolina': { desc: 'Gasolina', cat: 'Transporte' },
+        'combustível': { desc: 'Combustível', cat: 'Transporte' },
+        'combustivel': { desc: 'Combustível', cat: 'Transporte' },
+    }
+
+    let category = type === 'income' ? 'Outros' : 'Outros'
+
+    // Check for known terms
+    for (const [term, info] of Object.entries(knownTerms)) {
+        if (msg.includes(term)) {
+            description = info.desc
+            category = info.cat
+            break
         }
     }
 
-    return null
+    // If no known term found, try to extract a simple description
+    if (!description) {
+        // Remove common words and numbers to find the subject
+        const cleanMsg = msg
+            .replace(/gastei|paguei|comprei|recebi|ganhei|entrou/gi, '')
+            .replace(/r?\$?\s*\d+(?:[.,]\d{1,2})?\s*(?:reais|real)?/gi, '')
+            .replace(/hoje|ontem|agora|amanhã|no|na|em|de|do|da|um|uma|com|por/gi, '')
+            .trim()
+
+        if (cleanMsg.length > 0 && cleanMsg.length < 50) {
+            description = cleanMsg.charAt(0).toUpperCase() + cleanMsg.slice(1)
+        } else {
+            description = type === 'income' ? 'Receita' : 'Despesa'
+        }
+
+        category = categorizeTransaction(description, type)
+    }
+
+    return {
+        amount: extractedAmount,
+        description,
+        type,
+        category
+    }
 }
 
 // Categorizar transação automaticamente baseado na descrição

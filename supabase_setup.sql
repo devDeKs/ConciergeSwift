@@ -9,6 +9,7 @@ create table if not exists profiles (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users(id) on delete cascade not null unique,
   full_name text not null,
+  gender text check (gender in ('male', 'female', 'other')),
   created_at timestamp with time zone default now(),
   updated_at timestamp with time zone default now()
 );
