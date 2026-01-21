@@ -66,11 +66,80 @@
 @layer base {
   * {
     @apply border-border;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    /* Prevent pull-to-refresh and overscroll */
+    overscroll-behavior: none;
+    overflow: hidden;
+    height: 100%;
+    height: -webkit-fill-available;
   }
 
   body {
     background-color: var(--background);
     color: var(--foreground);
+    /* Prevent overscroll bounce */
+    overscroll-behavior: none;
+    overflow: hidden;
+    height: 100%;
+    height: -webkit-fill-available;
+    /* Prevent text selection on mobile */
+    -webkit-user-select: none;
+    user-select: none;
+    /* Prevent zoom on double tap */
+    touch-action: manipulation;
+    /* Safe area handling will be done per-component for full immersion */
+    padding: 0;
+    margin: 0;
+  }
+
+  /* Utility class for safe area padding if needed */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+  }
+
+  /* Allow text selection in input fields */
+  input,
+  textarea,
+  [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* Prevent iOS text size adjust */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Smooth scrolling for scrollable containers */
+  .scrollbar-none {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -194,4 +263,91 @@
 
 .glass-input-wrap:focus-within .glass-input-text-area::after {
   background-position: 25% 50%;
+}
+
+/* Mobile Dock Styles */
+/* Mobile Dock Styles */
+.mobile-dock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  /* Increased gap for cleaner look */
+  padding: 0.75rem 2rem;
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: none;
+  /* Shadow is handled via utility class in component, but base safe-styles here */
+  box-shadow: 0 -5px 25px rgba(0, 0, 0, 0.04);
+  border-radius: 0;
+}
+
+.mobile-dock__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  position: relative;
+  color: #9CA3AF;
+  /* Gray-400 */
+}
+
+.mobile-dock__item:hover {
+  color: #4B5563;
+  /* Gray-600 */
+  background: transparent;
+}
+
+.mobile-dock__item.active {
+  color: #111827;
+  /* Gray-900 / Midnight */
+}
+
+.mobile-dock__item.active::after {
+  content: '';
+  position: absolute;
+  top: -8px;
+  /* Move indicator to top or remove if following reference strictly, assuming minimalist dot or line */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  background: #111827;
+  border-radius: 50%;
+  transition: width 0.3s ease;
+  opacity: 0;
+  /* Hiding underline based on reference which usually has no heavy indicator, or make it subtle dot */
+}
+
+.mobile-dock__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.mobile-dock__item:hover .mobile-dock__icon {
+  transform: translateY(-2px);
+}
+
+.mobile-dock__text {
+  font-size: 0.625rem;
+  font-weight: 500;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.mobile-dock__text.active {
+  opacity: 1;
 }

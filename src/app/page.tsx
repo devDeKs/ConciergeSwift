@@ -2,7 +2,7 @@ import { Demo } from "@/components/demo";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="h-screen h-[100dvh] bg-background text-foreground overflow-hidden">
       <Demo />
     </main>
   );

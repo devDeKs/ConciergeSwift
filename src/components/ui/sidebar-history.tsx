@@ -6,12 +6,14 @@ import {
     History, ChevronLeft, Search, ArrowUpRight, ArrowDownRight,
     Filter, PanelLeftClose, PanelLeftOpen, PieChart, BarChart3,
     Settings, User, Shield, Trash2, LogOut, CheckCircle2,
-    Wallet, TrendingUp, CreditCard, Download, Loader2
+    Wallet, TrendingUp, CreditCard, Download, Loader2, Menu
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useAuth } from "@/contexts/AuthContext";
 import { Transaction } from "@/lib/transactions";
+
+// ... (keep helper functions same)
 
 // Helper to format date
 const formatDate = (dateString: string): string => {
@@ -102,16 +104,27 @@ const LiquidChart = ({ percentage, color = "#B4975A" }: { percentage: number, co
     );
 };
 
-export function SidebarHistory() {
-    // Auth & Data
+interface SidebarHistoryProps {
+    isCollapsed?: boolean;
+    setIsCollapsed?: (collapsed: boolean) => void;
+}
+
+export function SidebarHistory(props: SidebarHistoryProps) {
+    // Data hooks
     const { user, signOut } = useAuth();
     const { transactions, summary, loading } = useTransactions();
 
     // UI State
     const [isOpen, setIsOpen] = useState(false); // Mobile
-    const [isCollapsed, setIsCollapsed] = useState(false); // Desktop
-    const [activeTab, setActiveTab] = useState<"home" | "analytics" | "settings">("home");
-    const [chartType, setChartType] = useState<"pie" | "liquid">("pie");
+
+    // Internal state if props are not provided
+    const [internalIsCollapsed, setInternalIsCollapsed] = useState(false);
+
+    // Props handling
+    const isCollapsed = props.isCollapsed ?? internalIsCollapsed;
+    const setIsCollapsed = props.setIsCollapsed ?? setInternalIsCollapsed;
+
+    const [activeTab, setActiveTab] = useState<"home" | "settings">("home");
 
     // Filter Logic (Kept basic for 'home' tab)
     const [categoryFilter, setCategoryFilter] = useState("Todas");
@@ -150,9 +163,9 @@ export function SidebarHistory() {
             <div className="md:hidden fixed top-4 left-4 z-50">
                 <button
                     onClick={() => setIsOpen(!isOpen)}
-                    className="p-2 bg-midnight-light/50 border border-white/10 rounded-lg text-white"
+                    className="p-2 bg-midnight-light/50 border border-white/10 rounded-lg text-white backdrop-blur-md shadow-lg"
                 >
-                    <History className="w-5 h-5" />
+                    <Menu className="w-5 h-5 transform rotate-90" />
                 </button>
             </div>
 
@@ -173,10 +186,15 @@ export function SidebarHistory() {
             <motion.div
                 className={cn(
                     "fixed top-0 left-0 h-full bg-midnight/95 backdrop-blur-xl border-r border-white/5 z-50 shadow-2xl font-sans overflow-hidden flex flex-col",
+                    "transition-transform duration-300 ease-in-out", // Added CSS transition for transform
                     isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
                 )}
-                animate={{ width: isCollapsed ? 80 : 320 }}
-                transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
+                animate={{
+                    width: isCollapsed ? 80 : 320,
+                    // Note: We are NOT animating 'x' here to allow CSS classes to handle mobile slide
+                    // If we used animate={{ x: ... }}, it would override the CSS class transform
+                }}
+                transition={{ width: { duration: 0.4, ease: [0.32, 0.72, 0, 1] } }}
             >
                 {/* --- HEADER --- */}
                 <div className="h-[80px] border-b border-white/5 flex items-center justify-between shrink-0 relative px-6 w-[320px] box-border">
@@ -185,7 +203,6 @@ export function SidebarHistory() {
                             {/* Standard Icon */}
                             <motion.div animate={{ opacity: isCollapsed ? 0 : 1 }} className="absolute inset-0 flex items-center justify-center">
                                 {activeTab === "home" && <History className="w-5 h-5 text-gold" />}
-                                {activeTab === "analytics" && <PieChart className="w-5 h-5 text-gold" />}
                                 {activeTab === "settings" && <Settings className="w-5 h-5 text-gold" />}
                             </motion.div>
                             {/* Expand Button (Visible when collapsed) */}
@@ -201,7 +218,7 @@ export function SidebarHistory() {
                             className="text-sm font-medium tracking-wide text-white/90 font-serif whitespace-nowrap origin-left"
                             animate={{ opacity: isCollapsed ? 0 : 1, filter: isCollapsed ? "blur(10px)" : "blur(0px)", x: isCollapsed ? -10 : 0 }}
                         >
-                            {activeTab === "home" ? "HISTÓRICO" : activeTab === "analytics" ? "ANÁLISE" : "CONFIGURAÇÕES"}
+                            {activeTab === "home" ? "HISTÓRICO" : "CONFIGURAÇÕES"}
                         </motion.h2>
                     </div>
                     {/* Minimize Button */}
@@ -309,50 +326,6 @@ export function SidebarHistory() {
                         </motion.div>
                     )}
 
-                    {/* ANALYTICS TAB */}
-                    {activeTab === "analytics" && (
-                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={cn("p-6 space-y-8 w-[320px]", isCollapsed && "pointer-events-none")}>
-                            {/* Chart Controls */}
-                            <motion.div animate={{ opacity: isCollapsed ? 0 : 1, filter: isCollapsed ? "blur(4px)" : "blur(0px)" }} className="flex bg-white/5 p-1 rounded-lg">
-                                <button onClick={() => setChartType("pie")} className={cn("flex-1 py-1.5 text-xs font-medium rounded-md transition-all", chartType === "pie" ? "bg-gold text-midnight shadow-sm" : "text-white/50 hover:text-white")}>Pizza</button>
-                                <button onClick={() => setChartType("liquid")} className={cn("flex-1 py-1.5 text-xs font-medium rounded-md transition-all", chartType === "liquid" ? "bg-gold text-midnight shadow-sm" : "text-white/50 hover:text-white")}>Líquido</button>
-                            </motion.div>
-
-                            {/* Charts */}
-                            <motion.div animate={{ opacity: isCollapsed ? 0 : 1, filter: isCollapsed ? "blur(8px)" : "blur(0px)" }} className="flex flex-col items-center">
-                                {chartType === "pie" ? (
-                                    <SimplePieChart data={stats.catData} />
-                                ) : (
-                                    <div className="flex gap-6 items-end h-40">
-                                        <div className="flex flex-col items-center gap-2">
-                                            <LiquidChart percentage={75} color="#10b981" />
-                                            <span className="text-[10px] text-white/40">Metas</span>
-                                        </div>
-                                        <div className="flex flex-col items-center gap-2">
-                                            <LiquidChart percentage={stats.savingsRate} color="#B4975A" />
-                                            <span className="text-[10px] text-white/40">Economia</span>
-                                        </div>
-                                    </div>
-                                )}
-                            </motion.div>
-
-                            {/* Categories Stats */}
-                            <motion.div animate={{ opacity: isCollapsed ? 0 : 1, filter: isCollapsed ? "blur(6px)" : "blur(0px)" }} className="space-y-3">
-                                <h3 className="text-xs font-bold text-white/50 uppercase tracking-wider">Despesas por Categoria</h3>
-                                <div className="space-y-2">
-                                    {stats.catData.map((cat, i) => (
-                                        <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition-colors">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
-                                                <span className="text-xs text-white/80">{cat.label}</span>
-                                            </div>
-                                            <span className="text-xs font-mono text-white/60">R$ {cat.value}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </motion.div>
-                        </motion.div>
-                    )}
 
                     {/* SETTINGS TAB */}
                     {activeTab === "settings" && (
@@ -425,13 +398,7 @@ export function SidebarHistory() {
                             <History className="w-5 h-5" />
                             <motion.span animate={{ height: isCollapsed ? 0 : "auto", opacity: isCollapsed ? 0 : 1 }} className="text-[9px] font-medium tracking-wide overflow-hidden">Recentes</motion.span>
                         </button>
-                        <button
-                            onClick={() => setActiveTab("analytics")}
-                            className={cn("flex flex-col items-center justify-center gap-1 w-14 h-14 rounded-lg transition-all shrink-0", activeTab === "analytics" ? "bg-white/10 text-gold" : "text-white/40 hover:text-white/70")}
-                        >
-                            <BarChart3 className="w-5 h-5" />
-                            <motion.span animate={{ height: isCollapsed ? 0 : "auto", opacity: isCollapsed ? 0 : 1 }} className="text-[9px] font-medium tracking-wide overflow-hidden">Análise</motion.span>
-                        </button>
+
                         <button
                             onClick={() => setActiveTab("settings")}
                             className={cn("flex flex-col items-center justify-center gap-1 w-14 h-14 rounded-lg transition-all shrink-0", activeTab === "settings" ? "bg-white/10 text-gold" : "text-white/40 hover:text-white/70")}

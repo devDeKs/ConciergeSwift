@@ -28,7 +28,82 @@ import { useTransactions } from "@/hooks/useTransactions";
 import { useProfile } from "@/hooks/useProfile";
 import { useAuth } from "@/contexts/AuthContext";
 import { parseTransactionFromMessage, CreateTransactionInput } from "@/lib/transactions";
-import { CreditCard } from "lucide-react";
+import { CreditCard, Home, Settings } from "lucide-react";
+import { InteractiveMenu } from "./mobile-dock";
+
+// Flowing Waves Background Animation
+function FloatingPaths({ position }: { position: number }) {
+    const paths = Array.from({ length: 24 }, (_, i) => {
+        // Create flowing wave paths with sine-wave-like curves
+        const yOffset = 80 + i * 12 * position;
+        const amplitude = 30 + i * 3;
+        const wavelength = 200 + i * 10;
+
+        // Generate smooth wave path - extended for seamless loop
+        const d = `M-100 ${yOffset} 
+            Q${wavelength * 0.25} ${yOffset - amplitude} ${wavelength * 0.5} ${yOffset}
+            T${wavelength} ${yOffset}
+            T${wavelength * 1.5} ${yOffset}
+            T${wavelength * 2} ${yOffset}
+            T${wavelength * 2.5} ${yOffset}
+            T${wavelength * 3} ${yOffset}
+            T${wavelength * 3.5} ${yOffset}
+            T${wavelength * 4} ${yOffset}
+            T${wavelength * 4.5} ${yOffset}
+            T${wavelength * 5} ${yOffset}`;
+
+        return {
+            id: i,
+            d,
+            width: 0.3 + i * 0.02,
+            wavelength,
+            // Staggered timing for organic flow - smoother entry
+            duration: 10 + (i % 6) * 2,
+            delay: i * 0.15, // Sequential stagger for smooth cascade entry
+        };
+    });
+
+    return (
+        <div className="absolute inset-0 pointer-events-none -translate-y-[10%]">
+            <svg
+                className="w-full h-full text-gold/60"
+                viewBox="0 0 1200 400"
+                fill="none"
+                preserveAspectRatio="xMidYMid slice"
+            >
+                <title>Background Waves</title>
+                {paths.map((path) => (
+                    <motion.path
+                        key={path.id}
+                        d={path.d}
+                        stroke="currentColor"
+                        strokeWidth={path.width}
+                        strokeLinecap="round"
+                        initial={{
+                            pathLength: 0,
+                            pathOffset: 0,
+                            opacity: 0,
+                            strokeOpacity: 0,
+                        }}
+                        animate={{
+                            pathLength: [0, 0.5, 0.3, 0.6, 0.4],
+                            pathOffset: [0, 0.25, 0.5, 0.75, 1],
+                            opacity: [0, 0.4, 0.3, 0.45, 0],
+                            strokeOpacity: [0, 0.08 + path.id * 0.015, 0.1 + path.id * 0.01, 0.08 + path.id * 0.015, 0],
+                        }}
+                        transition={{
+                            duration: path.duration,
+                            repeat: Number.POSITIVE_INFINITY,
+                            ease: "easeInOut",
+                            delay: path.delay,
+                            times: [0, 0.2, 0.5, 0.8, 1],
+                        }}
+                    />
+                ))}
+            </svg>
+        </div>
+    );
+}
 
 // Types for Chat
 interface Message {
@@ -172,6 +247,18 @@ export function AnimatedAIChat() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [transactionSuccess, setTransactionSuccess] = useState<string | null>(null);
 
+    // Auto-scroll ref
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll to bottom
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages, isTyping]);
+
     // Installment Modal State
     const [showInstallmentModal, setShowInstallmentModal] = useState(false);
 
@@ -185,6 +272,9 @@ export function AnimatedAIChat() {
         }, 5000);
         return () => clearInterval(interval);
     }, [financeTips.length]);
+
+    // Sidebar State
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     const { textareaRef, adjustHeight } = useAutoResizeTextarea({ minHeight: 60, maxHeight: 200 });
     const [inputFocused, setInputFocused] = useState(false);
@@ -437,146 +527,171 @@ export function AnimatedAIChat() {
     };
 
     return (
-        <div className="min-h-screen flex flex-col w-full items-center justify-center bg-background text-white p-6 relative overflow-hidden">
-            <SidebarHistory />
-
-            {/* Ambient Background Effects */}
-            <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
-                <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-midnight-light/20 rounded-full mix-blend-screen filter blur-[128px] animate-pulse" />
-                <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-blue-900/10 rounded-full mix-blend-screen filter blur-[128px] animate-pulse delay-700" />
-                <div className="absolute top-[20%] right-[10%] w-[30vw] h-[30vw] bg-gold/5 rounded-full mix-blend-screen filter blur-[96px] animate-pulse delay-1000" />
+        // Use h-[100dvh] for mobile viewport stability
+        <div className="flex flex-col h-[100dvh] bg-gradient-to-b from-midnight to-midnight-light relative overflow-hidden">
+            {/* Gold Light Points - Soft & Faded */}
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] pointer-events-none opacity-40">
+                <div className="absolute inset-0 bg-gradient-radial from-gold/30 via-gold/5 to-transparent blur-[100px]" />
+            </div>
+            <div className="absolute bottom-32 right-0 w-[400px] h-[400px] pointer-events-none opacity-30">
+                <div className="absolute inset-0 bg-gradient-radial from-gold/25 via-gold/5 to-transparent blur-[90px]" />
             </div>
 
-            <div className="w-full max-w-2xl mx-auto relative z-10 flex flex-col items-center">
-
-                {/* Header matches previous... */}
+            {/* Main Content - Centered */}
+            <div className="flex-1 flex flex-col items-center justify-center px-6 relative z-10 pt-[calc(5rem+env(safe-area-inset-top))]">
                 {messages.length === 0 && (
-                    <motion.div className="text-center space-y-4 mb-12" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: "easeOut" }}>
-                        <div className="space-y-4">
-                            <h1 className="text-3xl md:text-4xl tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white/90 to-white/60 font-serif drop-shadow-sm pb-1" style={{ fontFamily: 'var(--font-playfair)' }}>Como posso ajudar hoje, <span className="bg-gradient-to-br from-gold-light via-gold to-gold-dark bg-clip-text text-transparent">{greetingPrefix}{firstName || 'Usuário'}</span>?</h1>
-                            <div className="h-6 overflow-hidden relative">
-                                <AnimatePresence mode="wait">
-                                    <motion.p key={currentTipIndex} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }} transition={{ duration: 0.5 }} className="text-white/50 font-light text-base">{financeTips[currentTipIndex]}</motion.p>
-                                </AnimatePresence>
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-
-                {/* Chat History */}
-                <div className="w-full space-y-4 mb-6 max-h-[40vh] overflow-y-auto scrollbar-none">
-                    {messages.map((msg, idx) => (
-                        <motion.div key={idx} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className={cn("p-4 rounded-xl backdrop-blur-md max-w-[85%]", msg.role === "user" ? "ml-auto bg-gold/10 border border-gold/20 text-gold-light" : "mr-auto bg-midnight-light/50 border border-white/10 text-white/90")}>{msg.content}</motion.div>
-                    ))}
-                </div>
-
-                {/* Input Area matches previous... */}
-                <motion.div className="w-full relative backdrop-blur-xl bg-midnight-light/5 rounded-2xl border border-white/5 shadow-lg overflow-visible" initial={{ scale: 0.98, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.2 }}>
-                    <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
-                    {/* Command Palette Logic (Hidden for brevity in this replace, assume it's there or simplified) */}
-
-                    <div className="p-4 relative z-10">
-                        <Textarea ref={textareaRef} value={value} onChange={(e) => { setValue(e.target.value); adjustHeight(); }} onKeyDown={handleKeyDown} onFocus={() => setInputFocused(true)} onBlur={() => setInputFocused(false)} placeholder="Descreva uma transação..." containerClassName="w-full" className="w-full px-4 py-3 resize-none bg-transparent border-none text-white/90 text-[15px] leading-relaxed focus:outline-none focus:ring-0 placeholder:text-white/30 min-h-[60px]" style={{ overflow: "hidden" }} showRing={false} />
-                    </div>
-                    <div className="px-4 pb-4 flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-2">
-                            <motion.button onClick={handleAttachFile} whileTap={{ scale: 0.94 }} className="p-2 text-gold/60 hover:text-gold hover:bg-gold/10 rounded-lg transition-colors relative group"><Paperclip className="w-4 h-4" /></motion.button>
-                            <motion.button data-command-button onClick={(e) => { e.stopPropagation(); setShowCommandPalette(prev => !prev); }} whileTap={{ scale: 0.94 }} className={cn("p-2 text-gold/60 hover:text-gold hover:bg-gold/10 rounded-lg transition-colors", showCommandPalette && "bg-gold/10 text-gold")}><Command className="w-4 h-4" /></motion.button>
-                        </div>
-                        <motion.button onClick={handleSendMessage} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }} disabled={isTyping || !value.trim()} className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2", value.trim() ? "bg-gold text-midnight shadow-[0_0_20px_-5px_rgba(212,175,55,0.4)] hover:bg-gold-light" : "bg-white/5 text-white/20 cursor-not-allowed")}>{isTyping ? <LoaderIcon className="w-4 h-4 animate-spin" /> : <SendIcon className="w-4 h-4" />}<span>Processar</span></motion.button>
-                    </div>
-                </motion.div>
-
-                {/* Suggestions Grid - FLUID ANIMATION UPDATE */}
-                {messages.length === 0 && (
-                    <div className="mt-6 w-full max-w-xl">
-                        <AnimatePresence mode="wait">
-                            <motion.div
-                                key={activeMenu} // Key triggers animation when menu changes
-                                initial={{ opacity: 0, filter: "blur(10px)", y: 10 }}
-                                animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
-                                exit={{ opacity: 0, filter: "blur(10px)", y: -10 }}
-                                transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
-                                className="flex flex-col items-center gap-4"
-                            >
-                                {activeMenu !== "main" && (
-                                    <div className="w-full flex items-center justify-start px-2">
-                                        <button
-                                            onClick={() => setActiveMenu("main")}
-                                            className="flex items-center gap-2 text-gold/60 hover:text-gold transition-colors text-sm"
-                                        >
-                                            <ArrowLeft className="w-4 h-4" /> Voltar
-                                        </button>
-                                    </div>
-                                )}
-
-                                <div className="flex flex-wrap items-center justify-center gap-4">
-                                    {getCurrentOptions().map((suggestion, index) => (
-                                        <button
-                                            key={suggestion.label}
-                                            onClick={() => handleMenuSelection(index)}
-                                            className="relative group w-32 h-24 flex flex-col items-center justify-center gap-3 bg-[#0F1426] border border-white/[0.06] hover:border-gold/30 rounded-2xl transition-all duration-300 hover:-translate-y-1 shadow-lg hover:shadow-gold/5"
-                                        >
-                                            <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                                            <div className="relative p-2 rounded-full bg-white/[0.03] group-hover:bg-gold/10 transition-colors">
-                                                {suggestion.icon}
-                                            </div>
-
-                                            <div className="relative flex flex-col items-center gap-0.5">
-                                                <span className="text-xs font-medium text-white/90 group-hover:text-gold transition-colors">
-                                                    {suggestion.label}
-                                                </span>
-                                                <span className="text-[10px] text-white/40 group-hover:text-white/60 transition-colors">
-                                                    {suggestion.description}
-                                                </span>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {/* Free Balance Indicator - Compact below cards */}
-                                <div className="w-full flex justify-center mt-4">
-                                    <FreeBalanceIndicator compact className="" />
-                                </div>
-                            </motion.div>
-                        </AnimatePresence>
-                    </div>
-                )}
-
-            </div>
-
-            {/* Floating Thinking Indicator */}
-            <AnimatePresence>
-                {isTyping && (
                     <motion.div
-                        className="fixed bottom-8 mx-auto left-0 right-0 w-fit backdrop-blur-2xl bg-midnight/90 border border-gold/20 rounded-full px-4 py-2 shadow-2xl z-50 flex items-center gap-3"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 20 }}
+                        transition={{ duration: 0.6 }}
+                        className="flex flex-col items-center text-center w-full max-w-md"
                     >
-                        <div className="w-2 h-2 rounded-full bg-gold animate-pulse" />
-                        <span className="text-xs font-medium text-gold/80">Analisando finanças...</span>
+                        {/* Chat Mold/Placeholder Visual */}
+                        <div className="relative w-48 h-32 mb-8 opacity-40 grayscale-[0.5]">
+                            {/* Abstract Chat Bubbles */}
+                            <motion.div
+                                className="absolute top-0 right-4 w-28 h-10 bg-white/10 rounded-2xl rounded-tr-sm border border-white/10 flex items-center gap-2 px-3"
+                                animate={{ y: [0, -5, 0] }}
+                                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                            >
+                                <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+                            </motion.div>
+
+                            <motion.div
+                                className="absolute top-14 left-0 w-32 h-12 bg-gold/10 rounded-2xl rounded-tl-sm border border-gold/10 flex items-center gap-2 px-3"
+                                animate={{ y: [0, 5, 0] }}
+                                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                            >
+                                <div className="w-16 h-1.5 bg-gold/20 rounded-full" />
+                            </motion.div>
+
+                            <motion.div
+                                className="absolute bottom-0 right-8 w-24 h-9 bg-white/10 rounded-2xl rounded-br-sm border border-white/10 flex items-center gap-2 px-3"
+                                animate={{ y: [0, -3, 0] }}
+                                transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                            >
+                                <div className="w-10 h-1.5 bg-white/20 rounded-full" />
+                            </motion.div>
+                        </div>
+
+                        {/* Greeting Messages - Perfectly Centered */}
+                        <div className="space-y-3">
+                            <h1
+                                className="text-3xl md:text-4xl font-serif text-white tracking-wide"
+                                style={{ fontFamily: 'var(--font-playfair)' }}
+                            >
+                                Bom ver você de volta!
+                            </h1>
+                            <h2 className="text-lg md:text-xl text-white/70 font-light max-w-xs mx-auto leading-relaxed">
+                                Como posso ajudar você hoje?
+                            </h2>
+                        </div>
                     </motion.div>
                 )}
-            </AnimatePresence>
+            </div>
 
-            {/* Dynamic Glow Following Cursor */}
-            {inputFocused && (
-                <motion.div
-                    className="fixed w-[40rem] h-[40rem] rounded-full pointer-events-none z-0 opacity-[0.03] bg-gold/30 blur-[100px]"
-                    animate={{
-                        x: mousePosition.x - 300,
-                        y: mousePosition.y - 300,
-                    }}
-                    transition={{
-                        type: "spring",
-                        damping: 40,
-                        stiffness: 100,
-                        mass: 0.8,
-                    }}
-                />
-            )}
+            {/* Chat Messages Area - Flexible Middle */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-none z-10 w-full">
+                {messages.length > 0 && (
+                    <div className="w-full max-w-2xl mx-auto space-y-4">
+                        {messages.map((msg, idx) => (
+                            <motion.div
+                                key={idx}
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className={cn(
+                                    "p-4 rounded-2xl max-w-[85%] backdrop-blur-md",
+                                    msg.role === "user"
+                                        ? "ml-auto bg-gold/20 border border-gold/30 text-white"
+                                        : "mr-auto bg-white/10 border border-white/10 text-white/90"
+                                )}
+                            >
+                                {msg.content}
+                            </motion.div>
+                        ))}
+                        {isTyping && (
+                            <div className="mr-auto bg-white/10 border border-white/10 rounded-2xl p-4 w-16 h-10 flex items-center justify-center">
+                                <TypingDots />
+                            </div>
+                        )}
+                        <div ref={messagesEndRef} />
+                    </div>
+                )}
+            </div>
+
+            {/* Input Section - White Bottom Sheet */}
+            <div className="flex-none bg-white rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.2)] z-20 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+                <div className="max-w-2xl mx-auto px-6 pt-6">
+                    {/* Templates / Suggestions */}
+                    {messages.length === 0 && (
+                        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-none">
+                            {getCurrentOptions().map((suggestion, index) => (
+                                <motion.button
+                                    key={suggestion.label}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.1 * index }}
+                                    onClick={() => handleMenuSelection(index)}
+                                    className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-gray-50 border border-gray-100 text-gray-600 hover:bg-gold/5 hover:border-gold/20 hover:text-gold text-sm font-medium transition-all whitespace-nowrap"
+                                >
+                                    <span className="text-gold">{suggestion.icon}</span>
+                                    <span>{suggestion.label}</span>
+                                </motion.button>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Input Bar */}
+                    <div className="relative flex items-center gap-3">
+                        <div className="flex-1 bg-gray-50 rounded-2xl flex items-center px-4 py-3 border border-gray-200 focus-within:border-gold/50 focus-within:bg-white transition-all">
+                            <input
+                                type="text"
+                                value={value}
+                                onChange={(e) => setValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleSendMessage();
+                                    }
+                                }}
+                                onFocus={() => setInputFocused(true)}
+                                onBlur={() => setInputFocused(false)}
+                                placeholder="Registre suas finanças..."
+                                className="flex-1 bg-transparent border-none text-gray-900 text-[15px] placeholder:text-gray-400 focus:outline-none"
+                            />
+                            <div className="flex items-center gap-2 pl-2 border-l border-gray-200 ml-2">
+                                <button className="p-1.5 text-gray-400 hover:text-gold transition-colors rounded-lg hover:bg-gray-100">
+                                    <Paperclip className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={() => setShowCommandPalette(prev => !prev)}
+                                    className="p-1.5 text-gray-400 hover:text-gold transition-colors rounded-lg hover:bg-gray-100"
+                                >
+                                    <Command className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <motion.button
+                            onClick={handleSendMessage}
+                            whileTap={{ scale: 0.9 }}
+                            disabled={!value.trim() && !isTyping}
+                            className={cn(
+                                "w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-lg",
+                                value.trim()
+                                    ? "bg-gold text-white hover:bg-gold-light hover:shadow-gold/30"
+                                    : "bg-gray-100 text-gray-300"
+                            )}
+                        >
+                            {isTyping ? (
+                                <LoaderIcon className="w-5 h-5 animate-spin" />
+                            ) : (
+                                <SendIcon className="w-5 h-5 ml-0.5" />
+                            )}
+                        </motion.button>
+                    </div>
+                </div>
+            </div>
 
             {/* Installment Modal */}
             <InstallmentModal
@@ -584,7 +699,6 @@ export function AnimatedAIChat() {
                 onClose={() => setShowInstallmentModal(false)}
                 onConfirm={(installments) => {
                     console.log('Created installments:', installments)
-                    // TODO: Save to database
                     refreshTransactions()
                 }}
             />
