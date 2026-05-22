@@ -2,28 +2,25 @@
 //  CardsView.swift
 //  ConciergeSwift
 //
-//  Credit cards / Installments - Original Design Pattern
+//  Credit cards / Installments - Fully Functional
 //  Dark header + Light content
 //
 
 import SwiftUI
 
 struct CardsView: View {
-    @State private var installments: [CardInstallment] = []
-    @State private var isLoading = false
+    @EnvironmentObject var authService: AuthService
+    @StateObject private var viewModel = CardsViewModel()
     @State private var showNewDebtModal = false
     
-    var totalMonthly: Double {
-        installments.reduce(0) { $0 + $1.installmentAmount }
-    }
+    @State private var showBlackPopup = false
+    @State private var showPaywall = false
     
     var body: some View {
         ZStack(alignment: .top) {
-            // Light global background
             Theme.background
                 .ignoresSafeArea()
             
-            // Dark Gradient Header Background (spans underneath the white overlapping content)
             ZStack {
                 LinearGradient(
                     colors: [
@@ -37,47 +34,62 @@ struct CardsView: View {
                 
                 MinimalistPatternView()
             }
-            .frame(height: 320) // Height increased slightly to safely cover the new padding
+            .frame(height: 320)
             .ignoresSafeArea(edges: .top)
             
             VStack(spacing: 0) {
-                // Dark Header
                 darkHeader
-                
-                // Light Content
                 lightContent
             }
             
-            // Modal Overlay
-            if showNewDebtModal {
-                NewDebtView()
-                    .transition(.opacity)
-                    .zIndex(100)
+        }
+        .onAppear {
+            if let userId = authService.currentUser?.id {
+                Task { await viewModel.loadDebts(userId: userId) }
             }
+        }
+        .overlay {
+            if showNewDebtModal {
+                NewDebtView(isPresented: $showNewDebtModal) {
+                    if let userId = authService.currentUser?.id {
+                        Task { await viewModel.loadDebts(userId: userId) }
+                    }
+                }
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: showNewDebtModal)
+        .overlay {
+            if showBlackPopup {
+                BlackFeaturePopup(isPresented: $showBlackPopup) {
+                    showPaywall = true
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showPaywall) {
+            ConciergeBlackView()
         }
     }
     
     // MARK: - Dark Header
     private var darkHeader: some View {
         VStack(spacing: 16) {
-            // Title
             Text("Cartões")
                 .font(.custom("Georgia", size: 28))
                 .foregroundColor(.white)
+                .shadow(color: .white.opacity(0.4), radius: 8, x: 0, y: 0)
                 .padding(.top, 16)
             
-            // Monthly Total Card
             VStack(alignment: .leading, spacing: 4) {
                 Text("Total em parcelas este mês")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.5))
                 
-                Text(formatCurrency(totalMonthly))
+                Text(viewModel.formattedMonthlyTotal)
                     .font(.title)
                     .fontWeight(.bold)
                     .foregroundColor(.white)
                 
-                Text("\(installments.count) parcelamento\(installments.count != 1 ? "s" : "") ativo\(installments.count != 1 ? "s" : "")")
+                Text("\(viewModel.activeDebts.count) parcelamento\(viewModel.activeDebts.count != 1 ? "s" : "") ativo\(viewModel.activeDebts.count != 1 ? "s" : "")")
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.4))
             }
@@ -90,15 +102,13 @@ struct CardsView: View {
             )
             .padding(.horizontal, 20)
         }
-        .padding(.bottom, 40) // Increased padding to cleanly clear the white overlap
-        // Background removed from here; it is now hosted cleanly at the ZStack root
+        .padding(.bottom, 40)
     }
     
     // MARK: - Light Content
     private var lightContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Header
                 HStack {
                     Text("Parcelamentos")
                         .font(.headline)
@@ -107,8 +117,11 @@ struct CardsView: View {
                     Spacer()
                     
                     Button(action: {
-                        withAnimation {
-                            showNewDebtModal = true
+                        guard let user = authService.currentUser else { return }
+                        if !user.isBlackMember && viewModel.activeDebts.count >= 2 {
+                            withAnimation { showBlackPopup = true }
+                        } else {
+                            withAnimation { showNewDebtModal = true }
                         }
                     }) {
                         HStack(spacing: 4) {
@@ -126,8 +139,7 @@ struct CardsView: View {
                     }
                 }
                 
-                // Installments List
-                if isLoading {
+                if viewModel.isLoading {
                     HStack {
                         Spacer()
                         ProgressView()
@@ -135,11 +147,26 @@ struct CardsView: View {
                         Spacer()
                     }
                     .padding(.vertical, 32)
-                } else if installments.isEmpty {
+                } else if viewModel.activeDebts.isEmpty {
                     emptyState
                 } else {
-                    ForEach(installments) { installment in
-                        InstallmentCard(installment: installment)
+                    ForEach(viewModel.activeDebts) { debt in
+                        DebtCard(debt: debt, onPay: {
+                            guard let debtId = debt.id, let userId = authService.currentUser?.id else { return }
+                            Task {
+                                await viewModel.payInstallment(debtId: debtId, userId: userId)
+                            }
+                        }, onAdvance: {
+                            guard let debtId = debt.id, let userId = authService.currentUser?.id else { return }
+                            Task {
+                                await viewModel.payInstallment(debtId: debtId, userId: userId)
+                            }
+                        }, onDelete: {
+                            guard let debtId = debt.id, let userId = authService.currentUser?.id else { return }
+                            Task {
+                                await viewModel.deleteDebt(debtId: debtId, userId: userId)
+                            }
+                        })
                     }
                 }
             }
@@ -147,8 +174,8 @@ struct CardsView: View {
             .padding(.bottom, 100)
         }
         .background(Theme.background)
-        .clipShape(RoundedCorner(radius: 36, corners: [.topLeft, .topRight])) // Corner radius maior
-        .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: -8) // Sombra suave apontando para cima
+        .clipShape(RoundedCorner(radius: 36, corners: [.topLeft, .topRight]))
+        .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: -8)
         .offset(y: -16)
     }
     
@@ -176,34 +203,15 @@ struct CardsView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 48)
     }
-    
-    private func formatCurrency(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale(identifier: "pt_BR")
-        return formatter.string(from: NSNumber(value: value)) ?? "R$ 0,00"
-    }
 }
 
-// MARK: - Card Installment Model
-struct CardInstallment: Identifiable {
-    let id = UUID()
-    let description: String
-    let totalAmount: Double
-    let installmentAmount: Double
-    let currentInstallment: Int
-    let totalInstallments: Int
-    let dueDate: Date
-    let cardName: String
-    
-    var progress: Double {
-        Double(currentInstallment) / Double(totalInstallments)
-    }
-}
-
-// MARK: - Installment Card
-struct InstallmentCard: View {
-    let installment: CardInstallment
+// MARK: - Debt Card
+struct DebtCard: View {
+    let debt: Debt
+    let onPay: () -> Void
+    let onAdvance: () -> Void
+    let onDelete: () -> Void
+    @State private var showActions = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -221,12 +229,12 @@ struct InstallmentCard: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(installment.description)
+                        Text(debt.description)
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundColor(Theme.textPrimary)
                         
-                        Text(installment.cardName)
+                        Text(debt.category)
                             .font(.caption)
                             .foregroundColor(Theme.textSecondary)
                     }
@@ -234,21 +242,24 @@ struct InstallmentCard: View {
                 
                 Spacer()
                 
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(Theme.textTertiary)
+                Button(action: { withAnimation { showActions.toggle() } }) {
+                    Image(systemName: "ellipsis")
+                        .font(.caption)
+                        .foregroundColor(Theme.textTertiary)
+                        .padding(8)
+                }
             }
             
             // Progress bar
             VStack(spacing: 4) {
                 HStack {
-                    Text("\(installment.currentInstallment) de \(installment.totalInstallments) parcelas")
+                    Text("\(debt.currentInstallment) de \(debt.totalInstallments) parcelas")
                         .font(.caption)
                         .foregroundColor(Theme.textSecondary)
                     
                     Spacer()
                     
-                    Text("\(Int(installment.progress * 100))%")
+                    Text("\(Int(debt.progress * 100))%")
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundColor(Theme.gold)
@@ -262,7 +273,7 @@ struct InstallmentCard: View {
                         
                         RoundedRectangle(cornerRadius: 4)
                             .fill(Theme.gold)
-                            .frame(width: geometry.size.width * installment.progress, height: 8)
+                            .frame(width: geometry.size.width * debt.progress, height: 8)
                     }
                 }
                 .frame(height: 8)
@@ -270,26 +281,433 @@ struct InstallmentCard: View {
             
             // Amount info
             HStack {
-                Text("Próxima parcela:")
-                    .font(.subheadline)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Parcela mensal")
+                        .font(.caption)
+                        .foregroundColor(Theme.textTertiary)
+                    Text(debt.formattedInstallment)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(Theme.textPrimary)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Restante")
+                        .font(.caption)
+                        .foregroundColor(Theme.textTertiary)
+                    Text(debt.formattedRemaining)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(Theme.error)
+                }
+            }
+            
+            // Due day badge
+            HStack(spacing: 6) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 10))
+                    .foregroundColor(Theme.textTertiary)
+                Text("Vence todo dia \(debt.dueDay)")
+                    .font(.caption)
                     .foregroundColor(Theme.textSecondary)
                 
                 Spacer()
                 
-                Text(formatCurrency(installment.installmentAmount))
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(Theme.textPrimary)
+                if debt.isPendingThisMonth {
+                    Text("PENDENTE")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(Theme.error)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Theme.error.opacity(0.1))
+                        .cornerRadius(6)
+                } else {
+                    Text("PAGA")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(Theme.success)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Theme.success.opacity(0.1))
+                        .cornerRadius(6)
+                }
+            }
+            
+            // Action buttons
+            if showActions {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        if debt.isPendingThisMonth {
+                            Button(action: onPay) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.caption)
+                                    Text("Pagar Parcela")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Theme.success)
+                                .cornerRadius(8)
+                            }
+                        }
+                        
+                        Button(action: onAdvance) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "forward.fill")
+                                    .font(.caption)
+                                Text("Adiantar Parcela")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                            }
+                            .foregroundColor(Theme.gold)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Theme.gold.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        
+                        Button(action: onDelete) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "trash")
+                                    .font(.caption)
+                                Text("Remover")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                            }
+                            .foregroundColor(Theme.error)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Theme.error.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(16)
         .background(Theme.background)
         .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4) // Added subtle shadow
+        .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Theme.surfaceHover, lineWidth: 1)
         )
+    }
+}
+
+// MARK: - New Debt Modal (Dark Theme, fully functional)
+struct NewDebtView: View {
+    @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var appState: AppState
+    @Binding var isPresented: Bool
+    var onSaved: () -> Void
+    
+    @State private var description: String = ""
+    @State private var monthlyAmountText: String = ""
+    @State private var installmentsText: String = ""
+    @State private var dueDay: Int = 10
+    @State private var selectedCategory: String = "Geral"
+    @State private var isLoading = false
+    
+    let categories = ["Geral", "Alimentação", "Transporte", "Moradia", "Lazer", "Saúde", "Educação", "Compras", "Eletrônicos"]
+    let dueDays = Array(1...28)
+    
+    var monthlyInstallment: Double {
+        Double(monthlyAmountText.replacingOccurrences(of: ",", with: ".")) ?? 0
+    }
+    
+    var totalInstallments: Int {
+        Int(installmentsText) ?? 0
+    }
+    
+    var totalAmount: Double {
+        monthlyInstallment * Double(totalInstallments)
+    }
+    
+    var isFormValid: Bool {
+        !description.isEmpty && totalAmount > 0 && totalInstallments > 0
+    }
+    
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            // Dimmed background
+            Color.black.opacity(0.2)
+                .background(
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .opacity(0.2)
+                )
+                .ignoresSafeArea()
+                .transition(.opacity)
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { isPresented = false }
+                }
+            
+            // Floating card
+            VStack(spacing: 22) {
+                // Header
+                HStack {
+                    Text("Nova Dívida")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    Button(action: { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { isPresented = false } }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white.opacity(0.4))
+                            .padding(8)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(Circle())
+                    }
+                }
+                
+                // Form Fields
+                VStack(spacing: 16) {
+                    // Description
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("DESCRIÇÃO")
+                            .font(.system(size: 9, weight: .bold))
+                            .tracking(1.5)
+                            .foregroundColor(Theme.gold.opacity(0.7))
+                        
+                        TextField("Ex: iPhone 15, Geladeira...", text: $description)
+                            .foregroundColor(.white)
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                    }
+                    
+                    HStack(spacing: 12) {
+                        // Installment Value
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("VALOR DA PARCELA")
+                                .font(.system(size: 9, weight: .bold))
+                                .tracking(1.5)
+                                .foregroundColor(Theme.gold.opacity(0.7))
+                            
+                            HStack {
+                                Text("R$")
+                                    .foregroundColor(.white.opacity(0.4))
+                                TextField("0,00", text: $monthlyAmountText)
+                                    .keyboardType(.decimalPad)
+                                    .foregroundColor(.white)
+                                    .onChange(of: monthlyAmountText) { _, newValue in
+                                        formatCurrencyInput(newValue)
+                                    }
+                            }
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        }
+                        
+                        // Number of Installments
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("PARCELAS")
+                                .font(.system(size: 9, weight: .bold))
+                                .tracking(1.5)
+                                .foregroundColor(Theme.gold.opacity(0.7))
+                            
+                            HStack {
+                                Image(systemName: "number")
+                                    .foregroundColor(.white.opacity(0.4))
+                                TextField("12", text: $installmentsText)
+                                    .keyboardType(.numberPad)
+                                    .foregroundColor(.white)
+                            }
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        }
+                    }
+                    
+                    // Total preview
+                    if totalAmount > 0 {
+                        HStack {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 12))
+                                .foregroundColor(Theme.gold)
+                            Text("Valor Total:")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.7))
+                            Spacer()
+                            Text(formatCurrency(totalAmount))
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(Theme.gold)
+                        }
+                        .padding(12)
+                        .background(Theme.gold.opacity(0.1))
+                        .cornerRadius(12)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.gold.opacity(0.3), lineWidth: 1))
+                    }
+                    
+                    HStack(spacing: 12) {
+                        // Due Day
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("VENCIMENTO (DIA)")
+                                .font(.system(size: 9, weight: .bold))
+                                .tracking(1.5)
+                                .foregroundColor(Theme.gold.opacity(0.7))
+                            
+                            Menu {
+                                ForEach(dueDays, id: \.self) { day in
+                                    Button("Dia \(day)") { dueDay = day }
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "calendar")
+                                        .foregroundColor(.white.opacity(0.4))
+                                    Text("\(dueDay)")
+                                        .foregroundColor(.white)
+                                    Spacer()
+                                    Image(systemName: "chevron.down")
+                                        .font(.caption)
+                                        .foregroundColor(.white.opacity(0.2))
+                                }
+                                .padding(12)
+                                .background(Color.white.opacity(0.06))
+                                .cornerRadius(12)
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                            }
+                        }
+                        
+                        // Category
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("CATEGORIA")
+                                .font(.system(size: 9, weight: .bold))
+                                .tracking(1.5)
+                                .foregroundColor(Theme.gold.opacity(0.7))
+                            
+                            Menu {
+                                ForEach(categories, id: \.self) { category in
+                                    Button(category) { selectedCategory = category }
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "tag.fill")
+                                        .foregroundColor(.white.opacity(0.4))
+                                    Text(selectedCategory)
+                                        .foregroundColor(.white)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Image(systemName: "chevron.down")
+                                        .font(.caption)
+                                        .foregroundColor(.white.opacity(0.2))
+                                }
+                                .padding(12)
+                                .background(Color.white.opacity(0.06))
+                                .cornerRadius(12)
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                            }
+                        }
+                    }
+                }
+                
+                // Confirm Button
+                Button(action: registerDebt) {
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                    } else {
+                        Text("Registrar Dívida")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(Theme.midnight)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                    }
+                }
+                .background(isFormValid ? Theme.gold : Theme.gold.opacity(0.4))
+                .cornerRadius(14)
+                .disabled(isLoading || !isFormValid)
+                .padding(.top, 8)
+            }
+            .padding(24)
+            .background(
+                ZStack {
+                    Color(hex: "080B12")
+                    LinearGradient(
+                        colors: [Color(hex: "080B12"), Color(hex: "121624"), Color(hex: "1C2235")],
+                        startPoint: .bottomLeading,
+                        endPoint: .topTrailing
+                    )
+                    .blur(radius: 20)
+                }
+            )
+            .cornerRadius(28)
+            .shadow(color: .white.opacity(0.1), radius: 15, x: 0, y: 4)
+            .shadow(color: .black.opacity(0.3), radius: 30, x: 0, y: 10)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 110)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+    
+    private func registerDebt() {
+        guard let userId = authService.currentUser?.id else { return }
+        isLoading = true
+        
+        let debt = Debt(
+            userId: userId,
+            description: description,
+            totalAmount: totalAmount,
+            monthlyInstallment: monthlyInstallment,
+            totalInstallments: totalInstallments,
+            currentInstallment: 0,
+            dueDay: dueDay,
+            category: selectedCategory,
+            status: .active,
+            createdAt: Date()
+        )
+        
+        Task {
+            do {
+                try await FirestoreService.shared.addDebt(debt)
+                await MainActor.run {
+                    isLoading = false
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { isPresented = false }
+                    onSaved()
+                }
+            } catch {
+                print("❌ Error saving debt: \(error)")
+                await MainActor.run { isLoading = false }
+            }
+        }
+    }
+    
+    private func formatCurrencyInput(_ newValue: String) {
+        let numbersString = newValue.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+        if let value = Double(numbersString) {
+            let amount = value / 100
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .decimal
+            formatter.minimumFractionDigits = 2
+            formatter.maximumFractionDigits = 2
+            formatter.locale = Locale(identifier: "pt_BR")
+            
+            if let newString = formatter.string(from: NSNumber(value: amount)) {
+                if monthlyAmountText != newString {
+                    monthlyAmountText = newString
+                }
+            }
+        } else {
+            if monthlyAmountText != "" {
+                monthlyAmountText = ""
+            }
+        }
     }
     
     private func formatCurrency(_ value: Double) -> String {
@@ -300,213 +718,56 @@ struct InstallmentCard: View {
     }
 }
 
+// MARK: - ViewModel
+@MainActor
+class CardsViewModel: ObservableObject {
+    @Published var debts: [Debt] = []
+    @Published var isLoading = false
+    
+    private let firestoreService = FirestoreService.shared
+    
+    var activeDebts: [Debt] {
+        debts.filter { $0.status == .active && !$0.isFullyPaid }
+    }
+    
+    var totalMonthly: Double {
+        activeDebts.filter { $0.isPendingThisMonth }.reduce(0) { $0 + $1.monthlyInstallment }
+    }
+    
+    var formattedMonthlyTotal: String {
+        totalMonthly.formattedCurrency
+    }
+    
+    func loadDebts(userId: String) async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            debts = try await firestoreService.fetchDebts(userId: userId)
+        } catch {
+            print("❌ Error loading debts: \(error)")
+        }
+    }
+    
+    func payInstallment(debtId: String, userId: String) async {
+        do {
+            try await firestoreService.payInstallment(debtId: debtId)
+            await loadDebts(userId: userId)
+        } catch {
+            print("❌ Error paying installment: \(error)")
+        }
+    }
+    
+    func deleteDebt(debtId: String, userId: String) async {
+        do {
+            try await firestoreService.deleteDebt(id: debtId)
+            await loadDebts(userId: userId)
+        } catch {
+            print("❌ Error deleting debt: \(error)")
+        }
+    }
+}
+
 #Preview {
     CardsView()
         .environmentObject(AuthService.shared)
-}
-
-// MARK: - New Debt Modal
-struct NewDebtView: View {
-    @Environment(\.presentationMode) var presentationMode
-    @EnvironmentObject var authService: AuthService
-    
-    @State private var description: String = ""
-    @State private var totalValue: Double = 0.0
-    @State private var paidValue: Double = 0.0
-    @State private var dueDate: Date = Date()
-    @State private var selectedCategory: String = "Geral"
-    @State private var isLoading = false
-    
-    let categories = ["Geral", "Alimentação", "Transporte", "Moradia", "Lazer", "Saúde"]
-    
-    var body: some View {
-        ZStack {
-            // Dimmed Background
-            Color.black.opacity(0.4)
-                .edgesIgnoringSafeArea(.all)
-                .onTapGesture {
-                    presentationMode.wrappedValue.dismiss()
-                }
-            
-            // Modal Card
-            VStack(spacing: 24) {
-                // Header
-                HStack {
-                    HStack(spacing: 12) {
-                        Image(systemName: "creditcard.fill")
-                            .font(.system(size: 20))
-                            .foregroundColor(Theme.gold)
-                            .padding(10)
-                            .background(Theme.gold.opacity(0.1))
-                            .clipShape(Circle())
-                        
-                        Text("Nova Dívida")
-                            .font(.custom("Georgia", size: 20)) // Serif font as per header style
-                            .bold()
-                            .foregroundColor(Theme.midnight)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: { presentationMode.wrappedValue.dismiss() }) {
-                        Image(systemName: "xmark")
-                            .foregroundColor(Theme.textTertiary)
-                            .padding(8)
-                            .background(Color(hex: "F8F9FA"))
-                            .clipShape(Circle())
-                    }
-                }
-                
-                // Form Fields
-                VStack(spacing: 20) {
-                    // Description
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("O QUE VOCÊ COMPROU?")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundColor(Theme.textSecondary)
-                        
-                        TextField("Ex: Novo Monitor", text: $description)
-                            .padding()
-                            .background(Color(hex: "F8F9FA"))
-                            .cornerRadius(12)
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.gold.opacity(0.2), lineWidth: 1))
-                    }
-                    
-                    HStack(spacing: 16) {
-                        // Total Value
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("VALOR TOTAL")
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundColor(Theme.textSecondary)
-                            
-                            CurrencyInputField(value: $totalValue)
-                        }
-                        
-                        // Paid Value
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("JÁ PAGO")
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundColor(Theme.textSecondary)
-                            
-                            CurrencyInputField(value: $paidValue)
-                        }
-                    }
-                    
-                    HStack(spacing: 16) {
-                        // Due Date
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("VENCIMENTO")
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundColor(Theme.textSecondary)
-                            
-                            HStack {
-                                Image(systemName: "calendar")
-                                    .foregroundColor(Theme.textTertiary)
-                                Text(formatDate(dueDate))
-                                    .foregroundColor(Theme.textPrimary)
-                                Spacer()
-                            }
-                            .padding()
-                            .background(Color(hex: "F8F9FA"))
-                            .cornerRadius(12)
-                            .overlay(
-                                DatePicker("", selection: $dueDate, displayedComponents: .date)
-                                    .labelsHidden()
-                                    .opacity(0.015) // Invisible clickable overlay
-                            )
-                        }
-                        
-                        // Category
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("CATEGORIA")
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundColor(Theme.textSecondary)
-                            
-                            Menu {
-                                ForEach(categories, id: \.self) { category in
-                                    Button(category) {
-                                        selectedCategory = category
-                                    }
-                                }
-                            } label: {
-                                HStack {
-                                    Image(systemName: "tag.fill")
-                                        .foregroundColor(Theme.textTertiary)
-                                    Text(selectedCategory)
-                                        .foregroundColor(Theme.textPrimary)
-                                    Spacer()
-                                }
-                                .padding()
-                                .background(Color(hex: "F8F9FA"))
-                                .cornerRadius(12)
-                            }
-                        }
-                    }
-                }
-                
-                // Action Button
-                Button(action: registerDebt) {
-                    if isLoading {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    } else {
-                        Text("REGISTRAR DÍVIDA")
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Theme.midnight)
-                            .cornerRadius(16)
-                    }
-                }
-                .disabled(isLoading || description.isEmpty || totalValue == 0)
-                .opacity(description.isEmpty || totalValue == 0 ? 0.6 : 1.0)
-            }
-            .padding(24)
-            .background(Color.white)
-            .cornerRadius(32)
-            .shadow(color: .black.opacity(0.15), radius: 24, x: 0, y: 12)
-            .padding(24)
-        }
-    }
-    
-    private func registerDebt() {
-        // Implement logic to save debt
-        // For now, just dismiss
-        isLoading = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            isLoading = false
-            presentationMode.wrappedValue.dismiss()
-        }
-    }
-    
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "dd/MM"
-        return formatter.string(from: date)
-    }
-}
-
-// Helper for Currency Input
-struct CurrencyInputField: View {
-    @Binding var value: Double
-    
-    var body: some View {
-        HStack {
-            Text("R$")
-                .foregroundColor(Theme.textTertiary)
-            TextField("0,00", value: $value, format: .currency(code: "BRL"))
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.leading)
-        }
-        .padding()
-        .background(Color(hex: "F8F9FA"))
-        .cornerRadius(12)
-    }
 }

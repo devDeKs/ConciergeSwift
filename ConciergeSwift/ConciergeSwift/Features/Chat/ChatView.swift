@@ -14,6 +14,8 @@ struct ChatView: View {
     @StateObject private var viewModel = ChatViewModel()
     @FocusState private var isInputFocused: Bool
     
+    @State private var showBlackPopup = false
+    
     var body: some View {
         ZStack(alignment: .top) {
             // Soft off-white background
@@ -38,15 +40,33 @@ struct ChatView: View {
             // Fixed Header
             chatHeader
                 .ignoresSafeArea(edges: .top)
+            
+            // Popups & Paywalls
+            if showBlackPopup {
+                BlackFeaturePopup(isPresented: $showBlackPopup) {
+                    viewModel.showPaywall = true
+                }
+                .zIndex(100)
+            }
+        }
+        .fullScreenCover(isPresented: $viewModel.showPaywall) {
+            ConciergeBlackView()
         }
         .onAppear {
             if let message = appState.pendingChatMessage {
                 viewModel.inputText = message
                 appState.pendingChatMessage = nil // Clear it so it doesn't fire again
                 
-                // Slight delay to allow view to render before sending
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    sendMessage()
+                if appState.shouldFocusChatInput {
+                    appState.shouldFocusChatInput = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        isInputFocused = true
+                    }
+                } else {
+                    // Slight delay to allow view to render before sending
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        sendMessage()
+                    }
                 }
             } else if appState.shouldFocusChatInput {
                 appState.shouldFocusChatInput = false
@@ -63,6 +83,7 @@ struct ChatView: View {
             Text("Concierge")
                 .font(.custom("Georgia", size: 26))
                 .foregroundColor(.white)
+                .shadow(color: .white.opacity(0.4), radius: 8, x: 0, y: 0)
             
             Spacer()
             
@@ -117,9 +138,19 @@ struct ChatView: View {
                                     .transition(.scale(scale: 0.9).combined(with: .opacity))
                                     .id(message.id)
                             } else {
-                                BotMessageBubble(content: message.content)
-                                    .transition(.opacity.combined(with: .move(edge: .leading)))
-                                    .id(message.id)
+                                VStack(alignment: .leading, spacing: 12) {
+                                    BotMessageBubble(content: message.content)
+                                        .transition(.opacity.combined(with: .move(edge: .leading)))
+                                        .id(message.id)
+                                    
+                                    if message.needsCategory {
+                                        CategorySelectionView(action: { category in
+                                            viewModel.inputText = "A categoria é \(category)"
+                                            viewModel.simulateSend() // we need a way to send it immediately
+                                        })
+                                        .transition(.move(edge: .top).combined(with: .opacity))
+                                    }
+                                }
                             }
                         }
                     }
@@ -137,7 +168,7 @@ struct ChatView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
             }
-            .onChange(of: viewModel.messages.count) { _ in
+            .onChange(of: viewModel.messages.count) { _, _ in
                 // Scroll to the latest message or the bottom spacer to ensure full visibility
                 withAnimation(.spring()) {
                     if let lastId = viewModel.messages.last?.id {
@@ -147,7 +178,7 @@ struct ChatView: View {
                     }
                 }
             }
-            .onChange(of: viewModel.isTyping) { isTyping in
+            .onChange(of: viewModel.isTyping) { _, isTyping in
                 if isTyping {
                     withAnimation(.spring()) {
                         proxy.scrollTo("typing", anchor: .bottom)
@@ -166,8 +197,12 @@ struct ChatView: View {
                     Spacer().frame(width: 20)
                     
                     GoldShimmerButton(icon: "bag", label: "Posso Gastar Hoje ?") {
-                        viewModel.inputText = "Posso gastar R$ (Insira o valor) hoje ?"
-                        isInputFocused = true
+                        if let user = authService.currentUser, user.isBlackMember {
+                            viewModel.inputText = "Posso gastar R$ (Insira o valor) hoje ?"
+                            isInputFocused = true
+                        } else {
+                            showBlackPopup = true
+                        }
                     }
                     
                     QuickTemplateButton(icon: "creditcard", label: "Registrar Gasto") {
@@ -200,22 +235,14 @@ struct ChatView: View {
                             .foregroundColor(Theme.midnight.opacity(0.4))
                     }
                     
-                    ZStack(alignment: .leading) {
-                        if viewModel.inputText.isEmpty {
-                            Text("Diga algo...")
-                                .font(.system(size: 16))
-                                .foregroundColor(Theme.midnight.opacity(0.4))
+                    TextField("", text: $viewModel.inputText, prompt: Text("Diga algo...").foregroundColor(Theme.midnight.opacity(0.5)))
+                        .font(.system(size: 16))
+                        .foregroundColor(Theme.midnight)
+                        .focused($isInputFocused)
+                        .submitLabel(.send)
+                        .onSubmit {
+                            sendMessage()
                         }
-                        
-                        TextField("", text: $viewModel.inputText)
-                            .font(.system(size: 16))
-                            .foregroundColor(Theme.midnight)
-                            .focused($isInputFocused)
-                            .submitLabel(.send)
-                            .onSubmit {
-                                sendMessage()
-                            }
-                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)
@@ -267,6 +294,52 @@ struct ChatView: View {
             impact.impactOccurred()
             await viewModel.sendMessage()
         }
+    }
+}
+
+// MARK: - Category Selection View
+struct CategorySelectionView: View {
+    let action: (String) -> Void
+    
+    let categories = [
+        ("Alimentação", "E8C382", "fork.knife"),
+        ("Transporte", "1DD1A1", "car.fill"),
+        ("Casa", "8A2BE2", "house.fill"),
+        ("Saúde", "FF6B6B", "cross.case.fill"),
+        ("Educação", "48DBFB", "book.fill"),
+        ("Lazer", "FF9F43", "play.tv.fill"),
+        ("Outros", "95A5A6", "cart.fill")
+    ]
+    
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                Spacer().frame(width: 8)
+                
+                ForEach(categories, id: \.0) { cat in
+                    Button(action: { action(cat.0) }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: cat.2)
+                                .font(.system(size: 12))
+                                .foregroundColor(Color(hex: cat.1))
+                            
+                            Text(cat.0)
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(Theme.midnight)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color.white)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(Color(hex: cat.1).opacity(0.3), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+                    }
+                }
+                
+                Spacer().frame(width: 20)
+            }
+        }
+        .padding(.bottom, 8)
     }
 }
 
@@ -451,6 +524,7 @@ class ChatViewModel: ObservableObject {
     @Published var messages: [Message] = []
     @Published var inputText = ""
     @Published var isTyping = false
+    @Published var showPaywall = false
     
     var userId: String? {
         AuthService.shared.currentUser?.id
@@ -466,6 +540,30 @@ class ChatViewModel: ObservableObject {
     func sendMessage() async {
         let text = inputText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
+        
+        if let user = AuthService.shared.currentUser, !user.isBlackMember {
+            let calendar = Calendar.current
+            var count = user.dailyAIMessageCount
+            let lastDate = user.lastAIMessageDate ?? Date.distantPast
+            
+            if calendar.isDateInToday(lastDate) {
+                if count >= 5 {
+                    showPaywall = true
+                    return
+                }
+                count += 1
+            } else {
+                count = 1
+            }
+            
+            do {
+                try await firestoreService.updateUserProfile(userId: user.id, data: [
+                    "dailyAIMessageCount": count,
+                    "lastAIMessageDate": Date()
+                ])
+                await AuthService.shared.refreshUser()
+            } catch { print("Failed to update limit") }
+        }
         
         inputText = ""
         
@@ -485,7 +583,8 @@ class ChatViewModel: ObservableObject {
             
             if let userId = userId, let lastIndex = messagesForAI.lastIndex(where: { $0.role == .user }) {
                 let contextStr = await firestoreService.getMonthlyContextString(userId: userId)
-                let enhancedContent = "\(messagesForAI[lastIndex].content)\n\n\(contextStr)"
+                let debtsStr = await firestoreService.getDebtsContextString(userId: userId)
+                let enhancedContent = "\(messagesForAI[lastIndex].content)\n\n\(contextStr)\n\(debtsStr)"
                 messagesForAI[lastIndex] = Message(id: messagesForAI[lastIndex].id, role: .user, content: enhancedContent, timestamp: messagesForAI[lastIndex].timestamp)
             }
             
@@ -503,7 +602,7 @@ class ChatViewModel: ObservableObject {
             
             isTyping = false
             withAnimation {
-                messages.append(Message(role: .assistant, content: cleanResponse))
+                messages.append(Message(role: .assistant, content: cleanResponse, needsCategory: extracted.needsCategory))
             }
         } catch {
             isTyping = false
@@ -526,6 +625,22 @@ class ChatViewModel: ObservableObject {
             print("✅ AI Transaction saved to Firestore: \(parsed.description)")
         } catch {
             print("❌ AI Transaction save error: \(error)")
+        }
+    }
+    
+    // Helper to send instantly from category button
+    func simulateSend() {
+        guard canSend else { return }
+        Task {
+            let impact = UIImpactFeedbackGenerator(style: .medium)
+            impact.impactOccurred()
+            
+            // Disable the previous needsCategory to collapse the buttons visually based on the last message
+            if let lastAssistIndex = messages.lastIndex(where: { $0.role == .assistant }) {
+                messages[lastAssistIndex].needsCategory = false
+            }
+            
+            await sendMessage()
         }
     }
 }

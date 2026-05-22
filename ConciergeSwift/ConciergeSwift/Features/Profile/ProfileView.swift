@@ -2,40 +2,67 @@
 //  ProfileView.swift
 //  ConciergeSwift
 //
-//  User profile - Modern Design Pattern
-//  Dark gradient header + Centered Avatar Card + Settings
+//  User profile and settings
 //
 
 import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var appState: AppState // for triggering language refresh implicitly 
+    @StateObject private var viewModel = ProfileViewModel()
     @State private var showLogoutAlert = false
+    
+    // Modals
+    @State private var showEditProfile = false
+    @State private var showCurrencySelection = false
+    @State private var showExportData = false
     
     var body: some View {
         ZStack(alignment: .top) {
-            // Main Background
-            Color(hex: "F8F9FA")
+            // White background
+            Color.white
                 .ignoresSafeArea()
             
-            // Scrollable Content
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Spacer to push content down significantly (Top Padding for User)
-                    Color.clear.frame(height: 60)
-                    
-                    // Profile Card
-                    profileCard
-                    
-                    // Simplified Settings
-                    settingsContent
-                        .padding(.top, 24)
-                        .padding(.bottom, 40) // Bottom padding for scroll
+            // Header Background (Midnight Blue with rounded bottom)
+            RoundedRectangle(cornerRadius: 40)
+                .fill(
+                    LinearGradient(
+                        colors: [Theme.midnight, Theme.midnightLight],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(height: 260)
+                .offset(y: -40) // Pushes top corners off-screen
+                .ignoresSafeArea()
+                .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
+            
+            VStack(spacing: 0) {
+                // Header Title
+                HStack {
+                    Text("Perfil")
+                        .font(.custom("Georgia", size: 28))
+                        .foregroundColor(.white)
+                        .shadow(color: .white.opacity(0.4), radius: 8, x: 0, y: 0)
+                    Spacer()
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 24) {
+                        profileCard
+                            .padding(.top, 32) // Overlap the header
+                        
+                        settingsContent
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 100) // Space for TabBar
                 }
             }
-            .scrollIndicators(.hidden)
         }
-        .alert("Sair da Conta", isPresented: $showLogoutAlert) {
+        .alert("Sair", isPresented: $showLogoutAlert) {
             Button("Cancelar", role: .cancel) {}
             Button("Sair", role: .destructive) {
                 try? authService.signOut()
@@ -43,75 +70,136 @@ struct ProfileView: View {
         } message: {
             Text("Tem certeza que deseja sair?")
         }
-    }
-    
-    // MARK: - Profile Card (Centered Avatar)
-    private var profileCard: some View {
-        VStack(spacing: 16) {
-            // Avatar Container
-            ZStack(alignment: .bottomTrailing) {
-                // Main Avatar Box
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(Color.white)
-                    .frame(width: 100, height: 100)
-                    .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 5)
-                    .overlay(
-                        Image(systemName: "person")
-                            .font(.system(size: 40, weight: .light))
-                            .foregroundColor(Theme.midnight.opacity(0.3))
-                    )
-                
-                // Gold Badge
-                ZStack {
-                    Circle()
-                        .fill(Theme.gold)
-                        .frame(width: 32, height: 32)
-                        .shadow(color: Theme.gold.opacity(0.3), radius: 4, x: 0, y: 2)
-                    
-                    Image(systemName: "wand.and.stars")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
+        .onAppear {
+            Task {
+                await authService.refreshUser()
+                if let userId = authService.currentUser?.id {
+                    await viewModel.loadStats(userId: userId)
                 }
-                .offset(x: 8, y: 8)
-            }
-            
-            // Name and Status
-            VStack(spacing: 4) {
-                Text(authService.currentUser?.displayName ?? "Usuário")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(Theme.midnight)
-                
-                Text("Membro Concierge Black")
-                    .font(.subheadline)
-                    .foregroundColor(Theme.gold)
             }
         }
-        .padding(.vertical, 20)
+        .sheet(isPresented: $showCurrencySelection) {
+            CurrencySelectionView()
+        }
+        .sheet(isPresented: $showEditProfile) {
+            EditProfileView()
+        }
+        .sheet(isPresented: $showExportData) {
+            ExportDataPopup()
+        }
+    }
+    
+    // MARK: - Profile Card (Floating white card)
+    private var profileCard: some View {
+        VStack(spacing: 20) {
+            // User Info
+            VStack(spacing: 12) {
+                // Avatar
+                ZStack {
+                    Circle()
+                        .fill(Theme.surface)
+                        .frame(width: 80, height: 80)
+                    
+                    Text(authService.currentUser?.displayName?.prefix(1).uppercased() ?? "U")
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(Theme.gold)
+                }
+                .overlay(
+                    Circle()
+                        .stroke(Theme.borderLight, lineWidth: 2)
+                )
+                
+                Text(authService.currentUser?.displayName ?? "Usuário")
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(Color(hex: "0A0E1A"))
+                
+                Text(authService.currentUser?.email ?? "")
+                    .font(.subheadline)
+                    .foregroundColor(Theme.textTertiary)
+                
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Theme.gold)
+                        .frame(width: 6, height: 6)
+                    Text("Membro Concierge Black")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(Theme.gold)
+                }
+            }
+            
+            // Stats Row
+            HStack(spacing: 0) {
+                profileStat(value: "\(viewModel.transactionsCount)", label: "Transações", icon: "arrow.left.arrow.right")
+                
+                Rectangle()
+                    .fill(Theme.borderLight)
+                    .frame(width: 1, height: 36)
+                
+                profileStat(value: "\(viewModel.debtsCount)", label: "Dívidas", icon: "creditcard")
+                
+                Rectangle()
+                    .fill(Theme.borderLight)
+                    .frame(width: 1, height: 36)
+                
+                profileStat(value: viewModel.formattedSavings, label: "Economia", icon: "leaf")
+            }
+            .padding(.vertical, 12)
+            .background(Theme.surface)
+            .cornerRadius(14)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Theme.borderLight, lineWidth: 1)
+            )
+        }
+        .padding(24)
+        .background(
+            RoundedRectangle(cornerRadius: 28)
+                .fill(.white)
+                .shadow(color: Color.black.opacity(0.15), radius: 30, x: 0, y: 12)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 28)
+                .stroke(Theme.borderLight, lineWidth: 1)
+        )
+    }
+    
+    // MARK: - Profile Stat
+    private func profileStat(value: String, label: String, icon: String) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundColor(Theme.gold)
+            Text(value)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(Color(hex: "0A0E1A"))
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundColor(Theme.textTertiary)
+        }
+        .frame(maxWidth: .infinity)
     }
     
     // MARK: - Settings Content
     private var settingsContent: some View {
         VStack(spacing: 20) {
             // Account Section
-            SettingsSection(title: "Conta") {
-                SettingsRow(icon: "person", title: "Meus Dados", subtitle: "Editar informações pessoais")
-                Divider().padding(.leading, 64)
-                SettingsRow(icon: "creditcard", title: "Moeda", subtitle: "BRL - Real Brasileiro")
-            }
-            
-            // Preferences Section
-            SettingsSection(title: "Preferências") {
-                SettingsRow(icon: "bell", title: "Notificações", subtitle: "Alertas e lembretes")
-                Divider().padding(.leading, 64)
-                SettingsRow(icon: "moon", title: "Aparência", subtitle: "Tema escuro ativado")
+            LightSettingsSection(title: "Conta") {
+                Button(action: { showEditProfile = true }) {
+                    LightSettingsRow(icon: "person", title: "Meus Dados", subtitle: "Editar informações pessoais")
+                }
+                LightDivider()
+                Button(action: { showCurrencySelection = true }) {
+                    LightSettingsRow(icon: "creditcard", title: "Moeda", subtitle: "Definir moeda global")
+                }
             }
             
             // Data Section
-            SettingsSection(title: "Dados") {
-                SettingsRow(icon: "arrow.down.doc", title: "Exportar Dados", subtitle: "Baixar em CSV")
-                Divider().padding(.leading, 64)
-                SettingsRow(icon: "shield", title: "Privacidade", subtitle: "Segurança e dados")
+            LightSettingsSection(title: "Dados") {
+                Button(action: { showExportData = true }) {
+                    LightSettingsRow(icon: "arrow.down.doc", title: "Exportar Dados", subtitle: "Baixar em CSV")
+                }
             }
             
             // Logout Button
@@ -121,7 +209,7 @@ struct ProfileView: View {
                         .font(.body)
                         .foregroundColor(Theme.error)
                         .frame(width: 40, height: 40)
-                        .background(Theme.error.opacity(0.1))
+                        .background(Theme.errorBg)
                         .clipShape(Circle())
                     
                     Text("Sair da Conta")
@@ -136,84 +224,104 @@ struct ProfileView: View {
                         .foregroundColor(Theme.textTertiary)
                 }
                 .padding(12)
-                .background(Color.white)
-                .cornerRadius(16)
-                .shadow(color: .black.opacity(0.03), radius: 5, x: 0, y: 2)
+                .background(.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Theme.error.opacity(0.2), lineWidth: 1)
+                )
             }
-            .padding(.horizontal, 20)
-            
-            // Version
-            Text("Concierge Finance v1.0.0")
-                .font(.caption)
-                .foregroundColor(Theme.textTertiary)
-                .padding(.top, 16)
         }
     }
 }
 
-// MARK: - Settings Section
-struct SettingsSection<Content: View>: View {
+// MARK: - Components (Adapted for White background)
+struct LightSettingsSection<Content: View>: View {
     let title: String
-    @ViewBuilder let content: Content
+    let content: Content
+    
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             Text(title.uppercased())
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(Theme.textSecondary)
-                .padding(.horizontal, 24)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(Theme.textTertiary)
+                .padding(.horizontal, 4)
             
             VStack(spacing: 0) {
                 content
             }
-            .background(Color.white)
+            .background(.white)
             .cornerRadius(16)
-            .shadow(color: .black.opacity(0.03), radius: 5, x: 0, y: 2)
-            .padding(.horizontal, 20)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Theme.borderLight, lineWidth: 1)
+            )
         }
     }
 }
 
-// MARK: - Settings Row
-struct SettingsRow: View {
+struct LightSettingsRow: View {
     let icon: String
     let title: String
-    let subtitle: String
+    let subtitle: String?
+    
+    init(icon: String, title: String, subtitle: String? = nil) {
+        self.icon = icon
+        self.title = title
+        self.subtitle = subtitle
+    }
     
     var body: some View {
-        Button(action: {}) {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.body)
-                    .foregroundColor(Theme.midnight.opacity(0.7))
+        HStack(spacing: 16) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(Theme.surface)
                     .frame(width: 40, height: 40)
-                    .background(Color(hex: "F8F9FA"))
-                    .clipShape(Circle())
                 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.body)
-                        .fontWeight(.medium)
-                        .foregroundColor(Theme.midnight)
-                    
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundColor(Theme.textSecondary)
-                }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(Theme.textTertiary)
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(Theme.gold)
             }
-            .padding(12)
+            
+            // Text
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(Color(hex: "0A0E1A"))
+                
+                if let subtitle = subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 12))
+                        .foregroundColor(Theme.textTertiary)
+                }
+            }
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(Theme.textTertiary)
         }
+        .padding(16)
+    }
+}
+
+struct LightDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Theme.borderLight)
+            .frame(height: 1)
+            .padding(.leading, 72)
     }
 }
 
 #Preview {
     ProfileView()
         .environmentObject(AuthService.shared)
+        .environmentObject(AppState())
 }

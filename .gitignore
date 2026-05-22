@@ -1,4 +1,6 @@
+# =========================
 # Xcode
+# =========================
 build/
 DerivedData/
 *.xcuserstate
@@ -6,30 +8,69 @@ DerivedData/
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 
+# =========================
 # Swift Package Manager
+# =========================
 .build/
 .swiftpm/
 Package.resolved
 Packages/
 
+# =========================
 # macOS
+# =========================
 .DS_Store
+**/.DS_Store
 *.swp
 *~
 .AppleDouble
 .LSOverride
+._*
 
-# Environment & secrets
+# =========================
+# Environment & Secrets
+# =========================
 .env*
+!.env.example
 
-# CocoaPods (if used later)
+# =========================
+# AI Agent Configuration
+# =========================
+.agent/
+.gemini/
+
+# =========================
+# CocoaPods
+# =========================
 Pods/
+Podfile.lock
 
-# Fastlane (if used later)
+# =========================
+# Fastlane
+# =========================
 fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
 
+# =========================
 # Cloudflare Workers
+# =========================
 node_modules/
+.wrangler/
+workers/.wrangler/
+
+# =========================
+# Temporary / Test Files
+# =========================
+test_json*.swift
+*.tmp
+*.log
+
+# =========================
+# Utility Scripts (local only)
+# =========================
+add_files.rb
+fix_xcode.py
+Gemfile
+Gemfile.lock

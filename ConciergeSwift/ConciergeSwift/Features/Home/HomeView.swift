@@ -12,8 +12,16 @@ struct HomeView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var appState: AppState
     @StateObject private var viewModel = HomeViewModel()
+    @ObservedObject private var notificationService = NotificationService.shared
+    @State private var showNotifications = false
+    
+    // Easter Egg
+    @State private var eggRotation: Double = 0
+    @State private var eggTaps = 0
+    @State private var showEggAlert = false
     
     var body: some View {
+        NavigationStack {
         ZStack(alignment: .top) {
             // White background
             Theme.background
@@ -66,17 +74,42 @@ struct HomeView: View {
         .task {
             if let userId = authService.currentUser?.id {
                 await viewModel.loadData(userId: userId)
+                notificationService.startListening(userId: userId)
             }
+        }
+        .navigationDestination(isPresented: $showNotifications) {
+            NotificationsView()
+                .navigationBarHidden(true)
+        }
+        }
+        .alert("Uau! ✨", isPresented: $showEggAlert) {
+            Button("Beleza!", role: .cancel) {}
+        } message: {
+            Text("Você encontrou o botão mágico de ficar rico... Brincadeira, continue guardando dinheiro! 🤫")
         }
     }
     
     // MARK: - Header
     private var header: some View {
         HStack {
-            Button(action: {}) {
-                Image(systemName: "line.3.horizontal")
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                    eggRotation += 360
+                }
+                eggTaps += 1
+                
+                let generator = UIImpactFeedbackGenerator(style: .rigid)
+                generator.impactOccurred()
+                
+                if eggTaps >= 5 {
+                    showEggAlert = true
+                    eggTaps = 0 // Reset
+                }
+            }) {
+                Image(systemName: "sparkles")
                     .font(.title2)
                     .foregroundColor(Theme.gold.opacity(0.8))
+                    .rotationEffect(.degrees(eggRotation))
             }
             .frame(width: 40, height: 40)
             
@@ -88,7 +121,7 @@ struct HomeView: View {
             
             Spacer()
             
-            Button(action: {}) {
+            Button(action: { showNotifications = true }) {
                 ZStack(alignment: .topTrailing) {
                     Circle()
                         .stroke(Color.white.opacity(0.3), lineWidth: 1)
@@ -99,10 +132,12 @@ struct HomeView: View {
                         .foregroundColor(.white.opacity(0.7))
                         .frame(width: 40, height: 40)
                     
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 8, height: 8)
-                        .offset(x: -6, y: 6)
+                    if notificationService.unreadCount > 0 {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                            .offset(x: -6, y: 6)
+                    }
                 }
             }
         }
@@ -176,20 +211,21 @@ struct HomeView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(viewModel.formattedIncome)
                                 .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(Color(hex: "00DC82"))
+                                .foregroundColor(Color(hex: "1DD1A1"))
                             
                             HStack(spacing: 4) {
                                 Circle()
-                                    .fill(Color(hex: "102A24"))
+                                    .fill(Color(hex: "1DD1A1").opacity(0.15))
                                     .frame(width: 16, height: 16)
                                     .overlay(
-                                        Image(systemName: "arrow.up.right")
+                                        Image(systemName: "arrow.down.left")
                                             .font(.system(size: 8, weight: .bold))
-                                            .foregroundColor(Color(hex: "00DC82"))
+                                            .foregroundColor(Color(hex: "1DD1A1"))
                                     )
-                                Text("Ganhos")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.5))
+                                Text("ENTRADAS")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .tracking(1.5)
+                                    .foregroundColor(.white.opacity(0.45))
                             }
                         }
                         
@@ -197,20 +233,21 @@ struct HomeView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(viewModel.formattedExpense)
                                 .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(Color(hex: "FF4757"))
+                                .foregroundColor(Theme.error)
                             
                             HStack(spacing: 4) {
                                 Circle()
-                                    .fill(Color(hex: "2A1015"))
+                                    .fill(Theme.error.opacity(0.15))
                                     .frame(width: 16, height: 16)
                                     .overlay(
-                                        Image(systemName: "arrow.down.left")
+                                        Image(systemName: "arrow.up.right")
                                             .font(.system(size: 8, weight: .bold))
-                                            .foregroundColor(Color(hex: "FF4757"))
+                                            .foregroundColor(Theme.error)
                                     )
-                                Text("Gastos")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.5))
+                                Text("SAÍDAS")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .tracking(1.5)
+                                    .foregroundColor(.white.opacity(0.45))
                             }
                         }
                     }
@@ -222,10 +259,24 @@ struct HomeView: View {
                 
                 // Quick Actions
                 HStack(spacing: 0) {
-                    QuickActionButton(icon: "arrow.up.right", label: "Receita") {}
-                    QuickActionButton(icon: "arrow.down.right", label: "Despesas") {}
-                    QuickActionButton(icon: "creditcard", label: "Parcelas") {}
-                    QuickActionButton(icon: "chart.bar", label: "Relatórios") {}
+                    QuickActionButton(icon: "arrow.up.right", label: "Receita") {
+                        appState.pendingChatMessage = "Receita: "
+                        appState.shouldFocusChatInput = true
+                        appState.selectedTab = 2
+                    }
+                    QuickActionButton(icon: "arrow.down.right", label: "Despesas") {
+                        appState.pendingChatMessage = "Despesa: "
+                        appState.shouldFocusChatInput = true
+                        appState.selectedTab = 2
+                    }
+                    QuickActionButton(icon: "creditcard", label: "Parcelas") {
+                        appState.selectedTab = 3
+                    }
+                    QuickActionButton(icon: "chart.bar", label: "Relatórios") {
+                        appState.pendingChatMessage = "Como estão meus gastos este mês?"
+                        appState.shouldFocusChatInput = false
+                        appState.selectedTab = 2
+                    }
                 }
                 .padding(.bottom, 4)
             }
@@ -363,6 +414,24 @@ struct HomeView: View {
                     }
                     .padding(.bottom, 100)
                 }
+                .overlay(
+                    VStack {
+                        Spacer()
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Theme.background.opacity(0.0),
+                                Theme.background.opacity(0.3),
+                                Theme.background.opacity(0.85),
+                                Theme.background
+                            ]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 200)
+                        .ignoresSafeArea(.all, edges: .bottom)
+                    }
+                    .allowsHitTesting(false)
+                )
             }
         }
         .frame(maxHeight: .infinity)
@@ -475,7 +544,7 @@ struct TransactionRow: View {
             Text((transaction.type == .income ? "+" : "-") + transaction.formattedAmount)
                 .font(.subheadline)
                 .fontWeight(.semibold)
-                .foregroundColor(transaction.type == .income ? Theme.success : Theme.error)
+                .foregroundColor(transaction.type == .income ? Theme.success : Theme.textPrimary)
         }
         .padding(.vertical, 8)
     }
@@ -507,9 +576,9 @@ class HomeViewModel: ObservableObject {
     private let firestoreService = FirestoreService.shared
     
     var balance: Double { income - expense }
-    var formattedBalance: String { formatCurrency(balance) }
-    var formattedIncome: String { formatCurrency(income) }
-    var formattedExpense: String { formatCurrency(expense) }
+    var formattedBalance: String { balance.formattedCurrency }
+    var formattedIncome: String { income.formattedCurrency }
+    var formattedExpense: String { expense.formattedCurrency }
     
     func loadData(userId: String) async {
         isLoading = true
@@ -518,7 +587,8 @@ class HomeViewModel: ObservableObject {
             let summary = try await firestoreService.getBalanceSummary(userId: userId)
             income = summary.income
             expense = summary.expense
-            recentTransactions = try await firestoreService.fetchTransactions(userId: userId)
+            let allTransactions = try await firestoreService.fetchTransactions(userId: userId)
+            recentTransactions = Array(allTransactions.sorted(by: { $0.createdAt > $1.createdAt }).prefix(8))
             
             // Inject fake transactions if empty (or for demo)
             if recentTransactions.isEmpty {
@@ -534,21 +604,7 @@ class HomeViewModel: ObservableObject {
             print("Error loading home data: \(error)")
         }
     }
-    
-    private func formatCurrency(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale(identifier: "pt_BR")
-        return formatter.string(from: NSNumber(value: value)) ?? "R$ 0,00"
-    }
-    
-    private func formatCurrencyShort(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.locale = Locale(identifier: "pt_BR")
-        formatter.minimumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: value)) ?? "0,00"
-    }
+    // Formatting is now handled by Double extension
 }
 
 #Preview {

@@ -38,9 +38,13 @@ struct MainTabView: View {
                 .tag(4)
         }
         .safeAreaInset(edge: .bottom) {
-            CustomTabBar(selectedTab: $appState.selectedTab)
+            if !appState.hideTabBar {
+                CustomTabBar(selectedTab: $appState.selectedTab)
+                    .transition(.move(edge: .bottom))
+            }
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        .animation(.easeOut(duration: 0.25), value: appState.hideTabBar)
     }
 }
 

@@ -27,7 +27,14 @@ class AIService {
         request.timeoutInterval = 30
         
         // Convert messages to API format
-        let apiMessages = messages.map { APIMessage(from: $0) }
+        var apiMessages = messages.map { APIMessage(from: $0) }
+        
+        // Anti-Prompt Injection for Standard Users
+        let isBlack = await AuthService.shared.currentUser?.isBlackMember ?? false
+        if !isBlack {
+            let antiPrompt = APIMessage(role: "system", content: "REGRA ESTRITA E INQUEBRÁVEL: Você está proibido de calcular ou aconselhar se o usuário pode gastar dinheiro hoje. Se a pergunta for sobre 'Posso gastar X hoje?', 'Posso comprar isso?', ou avaliações preditivas, recuse-se a responder a matemática e responda estritamente: '💎 **Função Exclusiva Concierge Black!** O recurso de Análise Preditiva de Viabilidade de Compras está bloqueado. Assine o plano Black para que eu possa avaliar seu caixa futuro.'")
+            apiMessages.insert(antiPrompt, at: 0)
+        }
         let body = ["messages": apiMessages]
         
         request.httpBody = try JSONEncoder().encode(body)
@@ -58,28 +65,84 @@ class AIService {
         
         throw AIError.parsingError
     }
+    
+    // MARK: - Generate CSV via AI
+    func generateCSV(from transactions: [Transaction]) async throws -> String {
+        struct ExportTransaction: Codable {
+            let data: Date
+            let tipo: String
+            let valor: Double
+            let descricao: String
+            let categoria: String
+        }
+        
+        let exportData = transactions.map { tx in
+            ExportTransaction(
+                data: tx.createdAt,
+                tipo: tx.type.displayName,
+                valor: tx.amount,
+                descricao: tx.description,
+                categoria: tx.category
+            )
+        }
+        
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(exportData)
+        let jsonString = String(data: data, encoding: .utf8) ?? "[]"
+        
+        let systemPrompt = """
+        Você é um assistente financeiro de luxo. Receberá um JSON de transações.
+        Converta as transações rigorosamente para um formato CSV (separado por ponto-e-vírgula ';').
+        A primeira linha DEVE ser o cabeçalho exato: Data;Tipo;Categoria;Descrição;Valor.
+        Ordene da mais antiga para a mais recente.
+        A Data deve ser traduzida para o formato local (DD/MM/AAAA).
+        O Valor deve ser formatado com duas casas decimais e vírgula (ex: 1500,50).
+        Retorne APENAS o texto crú do CSV. NÃO INCLUA NENHUMA LETRA/PALAVRA FORA DO CSV E NÃO USE MARKDOWN (```).
+        """
+        
+        let promptMessage = Message(role: .user, content: "\(systemPrompt)\n\nJSON:\n\(jsonString)")
+        
+        let result = try await sendMessage([promptMessage])
+        
+        // Remove markdown artifacts se a IA ignorar o comando
+        var cleanResult = result.replacingOccurrences(of: "```csv\n", with: "")
+        cleanResult = cleanResult.replacingOccurrences(of: "```\n", with: "")
+        cleanResult = cleanResult.replacingOccurrences(of: "```", with: "")
+        return cleanResult.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+    }
+    
     // MARK: - Extract Transaction JSON from AI Response
-    func extractJSONTransaction(from text: String) -> (cleanText: String, parsed: (type: TransactionType, amount: Double, description: String, category: String)?) {
+    func extractJSONTransaction(from text: String) -> (cleanText: String, parsed: (type: TransactionType, amount: Double, description: String, category: String)?, needsCategory: Bool) {
+        
+        var cleanText = text
+        var needsCategory = false
+        
+        // Verifica se a IA pediu categoria explícita através de botões interativos
+        if cleanText.contains("[[ASK_CATEGORY]]") {
+            needsCategory = true
+            cleanText = cleanText.replacingOccurrences(of: "[[ASK_CATEGORY]]", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
         // O padrão busca: [[TRANSACTION: {"type":...}]]
         let pattern = "\\[\\[TRANSACTION:\\s*(\\{.*?\\})\\s*\\]\\]"
         
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]),
               let match = regex.firstMatch(in: text, options: [], range: NSRange(text.startIndex..., in: text)) else {
-            return (text, nil)
+            return (cleanText, nil, needsCategory)
         }
         
         let jsonRange = match.range(at: 1)
         let fullMatchRange = match.range(at: 0)
         
-        guard let jsonStringRange = Range(jsonRange, in: text),
-              let fullStringRange = Range(fullMatchRange, in: text) else {
-            return (text, nil)
+        guard let jsonStringRange = Range(jsonRange, in: cleanText),
+              let fullStringRange = Range(fullMatchRange, in: cleanText) else {
+            return (cleanText, nil, needsCategory)
         }
         
-        let jsonString = String(text[jsonStringRange])
+        let jsonString = String(cleanText[jsonStringRange])
         
         // Remove a tag oculta da mensagem que vai para o usuário
-        var cleanText = text
         cleanText.removeSubrange(fullStringRange)
         cleanText = cleanText.trimmingCharacters(in: .whitespacesAndNewlines)
         
@@ -90,14 +153,14 @@ class AIService {
               let type = TransactionType(rawValue: typeStr),
               let amountNumber = dict["amount"] as? NSNumber,
               let description = dict["description"] as? String else {
-            return (cleanText, nil)
+            return (cleanText, nil, needsCategory)
         }
         
         let amount = amountNumber.doubleValue
         
         let category = dict["category"] as? String ?? "Outros"
         
-        return (cleanText, (type: type, amount: amount, description: description, category: category))
+        return (cleanText, (type: type, amount: amount, description: description, category: category), needsCategory)
     }
 }
 

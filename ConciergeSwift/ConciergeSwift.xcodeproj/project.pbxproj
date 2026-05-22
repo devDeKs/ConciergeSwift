@@ -25,12 +25,24 @@
 		016 /* CardsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116 /* CardsView.swift */; };
 		017 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 117 /* ProfileView.swift */; };
 		018 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 118 /* GoogleService-Info.plist */; };
+		019 /* Debt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 120 /* Debt.swift */; };
+		021 /* AppNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121 /* AppNotification.swift */; };
+		022 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122 /* NotificationService.swift */; };
+		023 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123 /* NotificationsView.swift */; };
 		043CD30B2F49135A00046B30 /* welcome_hero.png in Resources */ = {isa = PBXBuildFile; fileRef = 043CD30A2F49135A00046B30 /* welcome_hero.png */; };
 		04B1EAC22F2C5E9900F148CE /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 600 /* FirebaseAuth */; };
 		04B1EAC32F2C5E9900F148CE /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 601 /* FirebaseFirestore */; };
+		04B1EAC42F2C5E9900F148CE /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 602 /* FirebaseMessaging */; };
+		1E4B479E7668CA794D97C034 /* CurrencySelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45EE701CACD5B912EC5F7EEF /* CurrencySelectionView.swift */; };
+		35F5021E48A3565E164EDA55 /* ProfileViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52266C3C6CADCD9AB2A7B1A /* ProfileViewModel.swift */; };
+		40FB4492EC37CC542308EE62 /* EditProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814C258ACE86F9D5A4657744 /* EditProfileView.swift */; };
+		6431AE4823881168F7BD7769 /* ConciergeBlackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62C31C2F7AB50D036FACCD3D /* ConciergeBlackView.swift */; };
+		8B9A2E202EADFF51A8EE64F2 /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A8D4568F6103D27B2C0994 /* StoreKitManager.swift */; };
+		F8134967B96FE5D849C2C78F /* ExportDataPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA34D40FA8CFA933D2A00894 /* ExportDataPopup.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		02A8D4568F6103D27B2C0994 /* StoreKitManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = StoreKitManager.swift; path = ConciergeSwift/Core/Services/StoreKitManager.swift; sourceTree = "<group>"; };
 		043CD3092F4910AD00046B30 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		043CD30A2F49135A00046B30 /* welcome_hero.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = welcome_hero.png; sourceTree = "<group>"; };
 		100 /* ConciergeSwift.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ConciergeSwift.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -53,6 +65,15 @@
 		117 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		118 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		119 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		120 /* Debt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debt.swift; sourceTree = "<group>"; };
+		121 /* AppNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNotification.swift; sourceTree = "<group>"; };
+		122 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		123 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
+		45EE701CACD5B912EC5F7EEF /* CurrencySelectionView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CurrencySelectionView.swift; sourceTree = "<group>"; };
+		62C31C2F7AB50D036FACCD3D /* ConciergeBlackView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConciergeBlackView.swift; path = ConciergeSwift/Features/Profile/ConciergeBlackView.swift; sourceTree = "<group>"; };
+		814C258ACE86F9D5A4657744 /* EditProfileView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EditProfileView.swift; sourceTree = "<group>"; };
+		A52266C3C6CADCD9AB2A7B1A /* ProfileViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileViewModel.swift; sourceTree = "<group>"; };
+		BA34D40FA8CFA933D2A00894 /* ExportDataPopup.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExportDataPopup.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +83,7 @@
 			files = (
 				04B1EAC32F2C5E9900F148CE /* FirebaseFirestore in Frameworks */,
 				04B1EAC22F2C5E9900F148CE /* FirebaseAuth in Frameworks */,
+				04B1EAC42F2C5E9900F148CE /* FirebaseMessaging in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -74,6 +96,8 @@
 				043CD3092F4910AD00046B30 /* Assets.xcassets */,
 				301 /* ConciergeSwift */,
 				302 /* Products */,
+				62C31C2F7AB50D036FACCD3D /* ConciergeBlackView.swift */,
+				02A8D4568F6103D27B2C0994 /* StoreKitManager.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -125,6 +149,7 @@
 				313 /* Transactions */,
 				314 /* Cards */,
 				315 /* Profile */,
+				316 /* Notifications */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -152,7 +177,9 @@
 			children = (
 				104 /* User.swift */,
 				105 /* Transaction.swift */,
+				120 /* Debt.swift */,
 				106 /* Message.swift */,
+				121 /* AppNotification.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -164,6 +191,7 @@
 				108 /* FirestoreService.swift */,
 				109 /* AIService.swift */,
 				110 /* KeychainService.swift */,
+				122 /* NotificationService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -212,8 +240,20 @@
 			isa = PBXGroup;
 			children = (
 				117 /* ProfileView.swift */,
+				A52266C3C6CADCD9AB2A7B1A /* ProfileViewModel.swift */,
+				814C258ACE86F9D5A4657744 /* EditProfileView.swift */,
+				45EE701CACD5B912EC5F7EEF /* CurrencySelectionView.swift */,
+				BA34D40FA8CFA933D2A00894 /* ExportDataPopup.swift */,
 			);
 			path = Profile;
+			sourceTree = "<group>";
+		};
+		316 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				123 /* NotificationsView.swift */,
+			);
+			path = Notifications;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -235,6 +275,7 @@
 			packageProductDependencies = (
 				600 /* FirebaseAuth */,
 				601 /* FirebaseFirestore */,
+				602 /* FirebaseMessaging */,
 			);
 			productName = ConciergeSwift;
 			productReference = 100 /* ConciergeSwift.app */;
@@ -248,7 +289,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1520;
-				LastUpgradeCheck = 1520;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					400 = {
 						CreatedOnToolsVersion = 15.2;
@@ -298,6 +339,7 @@
 				003 /* Theme.swift in Sources */,
 				004 /* User.swift in Sources */,
 				005 /* Transaction.swift in Sources */,
+				019 /* Debt.swift in Sources */,
 				006 /* Message.swift in Sources */,
 				007 /* AuthService.swift in Sources */,
 				008 /* FirestoreService.swift in Sources */,
@@ -310,6 +352,15 @@
 				015 /* TransactionsView.swift in Sources */,
 				016 /* CardsView.swift in Sources */,
 				017 /* ProfileView.swift in Sources */,
+				021 /* AppNotification.swift in Sources */,
+				022 /* NotificationService.swift in Sources */,
+				023 /* NotificationsView.swift in Sources */,
+				35F5021E48A3565E164EDA55 /* ProfileViewModel.swift in Sources */,
+				40FB4492EC37CC542308EE62 /* EditProfileView.swift in Sources */,
+				1E4B479E7668CA794D97C034 /* CurrencySelectionView.swift in Sources */,
+				F8134967B96FE5D849C2C78F /* ExportDataPopup.swift in Sources */,
+				6431AE4823881168F7BD7769 /* ConciergeBlackView.swift in Sources */,
+				8B9A2E202EADFF51A8EE64F2 /* StoreKitManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -321,12 +372,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4SGLX97294;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ConciergeSwift/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Concierge;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = armv7;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -351,12 +403,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4SGLX97294;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ConciergeSwift/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Concierge;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = armv7;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -381,6 +434,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -411,6 +465,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 4SGLX97294;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -434,6 +489,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -444,6 +500,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -474,6 +531,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 4SGLX97294;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -490,6 +548,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -539,6 +598,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 800 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		602 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 800 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

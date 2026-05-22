@@ -18,19 +18,22 @@ struct Message: Identifiable, Codable {
     let role: MessageRole
     let content: String
     let timestamp: Date
+    var needsCategory: Bool
     
-    init(role: MessageRole, content: String) {
+    init(role: MessageRole, content: String, needsCategory: Bool = false) {
         self.id = UUID()
         self.role = role
         self.content = content
         self.timestamp = Date()
+        self.needsCategory = needsCategory
     }
     
-    init(id: UUID = UUID(), role: MessageRole, content: String, timestamp: Date = Date()) {
+    init(id: UUID = UUID(), role: MessageRole, content: String, timestamp: Date = Date(), needsCategory: Bool = false) {
         self.id = id
         self.role = role
         self.content = content
         self.timestamp = timestamp
+        self.needsCategory = needsCategory
     }
 }
 
@@ -42,5 +45,10 @@ struct APIMessage: Codable {
     init(from message: Message) {
         self.role = message.role.rawValue
         self.content = message.content
+    }
+    
+    init(role: String, content: String) {
+        self.role = role
+        self.content = content
     }
 }

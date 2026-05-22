@@ -38,10 +38,7 @@ struct Transaction: Identifiable, Codable {
     let createdAt: Date
     
     var formattedAmount: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale(identifier: "pt_BR")
-        return formatter.string(from: NSNumber(value: amount)) ?? "R$ 0,00"
+        amount.formattedCurrency
     }
     
     var formattedDate: String {
