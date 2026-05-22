@@ -135,6 +135,44 @@ The app follows a premium dark + gold aesthetic:
 | `Theme.success` | `#34D399` | Positive amounts |
 | `Theme.error` | `#FB7185` | Negative amounts, alerts |
 
+## 💻 Continuando em Outro Mac
+
+Tudo que você precisa já está no repositório. Basta:
+
+```bash
+# 1. Clonar
+git clone https://github.com/devDeKs/ConciergeSwift.git
+
+# 2. Abrir no Xcode
+open ConciergeSwift/ConciergeSwift.xcodeproj
+
+# 3. Aguardar o SPM resolver o Firebase SDK (~1-2 min)
+
+# 4. Run ⌘R
+```
+
+### O que já está incluído no repo
+
+| Item | Status | Detalhes |
+|------|--------|----------|
+| Código Swift (27 arquivos) | ✅ No repo | Todo o app iOS |
+| `GoogleService-Info.plist` | ✅ No repo | Firebase config (Auth, Firestore, FCM) |
+| `project.pbxproj` + xcscheme | ✅ No repo | Projeto Xcode completo |
+| Assets (imagens) | ✅ No repo | welcome_hero, home_hero |
+| `workers/chat-api.js` | ✅ No repo | Cloudflare Worker (AI backend) |
+| `wrangler.toml` | ✅ No repo | Config do Worker |
+| `Package.swift` | ✅ No repo | Dependências (Firebase SDK) |
+
+### O que NÃO está no repo (e não precisa estar)
+
+| Item | Onde está | Observação |
+|------|----------|------------|
+| `OPENROUTER_API_KEY` | ☁️ Cloudflare Workers (secrets) | Já está configurada na cloud, não precisa de nada local |
+| `.env.local` | ❌ Legado (web app antigo) | O app iOS nativo **não usa** este arquivo |
+| `xcuserdata/` | 🖥️ Gerado pelo Xcode | Recriado automaticamente ao abrir o projeto |
+
+> **Requisitos:** Xcode 15+ com Swift 5.9 e target iOS 17+
+
 ## 📄 License
 
 This project is proprietary. All rights reserved.
